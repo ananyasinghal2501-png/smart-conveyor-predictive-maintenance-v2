@@ -1,0 +1,1619 @@
+<!DOCTYPE html>
+<html lang="en" data-template="command">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Conveyor Health Dashboard — Templates</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --radius-sm: 6px;
+    --radius-md: 10px;
+    --font-display: 'Space Grotesk', sans-serif;
+    --font-mono: 'JetBrains Mono', monospace;
+  }
+
+  /* ============ TEMPLATE 1: COMMAND DECK (control-room, dark) ============ */
+  html[data-template="command"]{
+    --bg: #14171A;
+    --panel: #1B1F24;
+    --panel-2: #21262C;
+    --border: #2C3238;
+    --text: #E8EAED;
+    --text-dim: #8B939B;
+    --text-faint: #565D64;
+    --accent: #FF8C1A;
+    --accent-2: #35B0C7;
+    --good: #3FB950;
+    --warn: #F2B705;
+    --bad: #E5484D;
+    --gauge-track: #2A2F35;
+  }
+
+  /* ============ TEMPLATE 2: DAYLIGHT OPS (light, day-shift tablet) ============ */
+  html[data-template="daylight"]{
+    --bg: #F1F3F4;
+    --panel: #FFFFFF;
+    --panel-2: #F7F8F9;
+    --border: #D8DCDF;
+    --text: #1B1F24;
+    --text-dim: #5B6570;
+    --text-faint: #96A0A9;
+    --accent: #C25A00;
+    --accent-2: #0E7C90;
+    --good: #1E8E3E;
+    --warn: #B7791F;
+    --bad: #C0362C;
+    --gauge-track: #E4E7E9;
+  }
+
+  /* ============ TEMPLATE 3: FIELD COMPACT (handheld, single column) ============ */
+  html[data-template="field"]{
+    --bg: #101314;
+    --panel: #191D1F;
+    --panel-2: #1F2426;
+    --border: #2B3133;
+    --text: #ECEFEF;
+    --text-dim: #909A9C;
+    --text-faint: #5C6668;
+    --accent: #FFB300;
+    --accent-2: #4CC2C7;
+    --good: #4CAF62;
+    --warn: #E0A82E;
+    --bad: #E15B4F;
+    --gauge-track: #262C2E;
+  }
+
+  *{box-sizing:border-box; margin:0; padding:0;}
+  body{
+    background:var(--bg);
+    color:var(--text);
+    font-family:var(--font-display);
+    -webkit-font-smoothing:antialiased;
+    padding-bottom:60px;
+  }
+
+  /* ---------- template switcher ---------- */
+  .switcher{
+    position:sticky; top:0; z-index:50;
+    display:flex; gap:0;
+    background:#0B0D0E;
+    border-bottom:1px solid #23282B;
+    padding:0 20px;
+    overflow-x:auto;
+  }
+  .switcher button{
+    font-family:var(--font-mono);
+    font-size:12px;
+    letter-spacing:.02em;
+    color:#7A8288;
+    background:none;
+    border:none;
+    border-bottom:2px solid transparent;
+    padding:14px 16px;
+    cursor:pointer;
+    white-space:nowrap;
+  }
+  .switcher button:hover{color:#C7CDD1;}
+  .switcher button.active{color:#FF8C1A; border-bottom-color:#FF8C1A;}
+
+  .page{ display:none; max-width:1360px; margin:0 auto; padding:28px 24px 0; }
+  .page.active{ display:block; }
+
+  /* ============================================================
+     HEADER
+  ============================================================ */
+  .dash-header{
+    display:flex; justify-content:space-between; align-items:flex-end;
+    flex-wrap:wrap; gap:12px;
+    margin-bottom:22px;
+    padding-bottom:16px;
+    border-bottom:1px solid var(--border);
+  }
+  .dash-header .title-block h1{
+    font-size:22px; font-weight:600; letter-spacing:-0.01em;
+  }
+  .dash-header .title-block .sub{
+    font-family:var(--font-mono); font-size:12px; color:var(--text-dim); margin-top:4px;
+  }
+  .status-pill{
+    display:inline-flex; align-items:center; gap:6px;
+    font-family:var(--font-mono); font-size:11px;
+    padding:6px 10px; border-radius:20px;
+    background:var(--panel-2); border:1px solid var(--border); color:var(--text-dim);
+  }
+  .status-pill .dot{ width:6px; height:6px; border-radius:50%; background:var(--good); }
+  .status-pill .dot.live{ animation:pulse 2s infinite; }
+  @keyframes pulse{ 0%,100%{opacity:1;} 50%{opacity:.35;} }
+
+  .severity-pill{ font-weight:600; }
+  .severity-pill.normal{ background:rgba(63,185,80,.12); border-color:rgba(63,185,80,.4); color:var(--good); }
+  .severity-pill.normal .dot{ background:var(--good); }
+  .severity-pill.warning{ background:rgba(242,183,5,.12); border-color:rgba(242,183,5,.4); color:var(--warn); }
+  .severity-pill.warning .dot{ background:var(--warn); }
+  .severity-pill.critical{ background:rgba(229,72,77,.16); border-color:rgba(229,72,77,.55); color:var(--bad); }
+  .severity-pill.critical .dot{ background:var(--bad); animation:pulse 1s infinite; }
+
+  /* ---- top-of-page critical alert banner ---- */
+  .alert-banner{
+    display:none;
+    align-items:center; gap:16px;
+    background:linear-gradient(90deg, rgba(229,72,77,.22), rgba(229,72,77,.08));
+    border:1px solid rgba(229,72,77,.5);
+    border-radius:var(--radius-md);
+    padding:14px 18px;
+    margin-bottom:18px;
+  }
+  .alert-banner .banner-icon{
+    width:34px; height:34px; border-radius:50%; flex-shrink:0;
+    background:var(--bad); color:#fff;
+    display:flex; align-items:center; justify-content:center;
+    font-family:var(--font-mono); font-size:18px; font-weight:700;
+  }
+  .alert-banner .banner-body{ flex:1; min-width:0; }
+  .alert-banner .banner-title{
+    font-family:var(--font-mono); font-size:12.5px; font-weight:700;
+    letter-spacing:.04em; color:var(--bad); margin-bottom:6px;
+  }
+  .alert-banner .banner-chips{ display:flex; gap:8px; flex-wrap:wrap; }
+  .alert-banner .banner-chip{
+    font-family:var(--font-mono); font-size:11px; color:#F5C6C7;
+    background:rgba(0,0,0,.25); border:1px solid rgba(229,72,77,.35);
+    padding:4px 9px; border-radius:6px;
+  }
+  .alert-banner .banner-meta{
+    font-family:var(--font-mono); font-size:11px; color:#F5C6C7; white-space:nowrap;
+  }
+  .alert-banner .banner-ack{
+    font-family:var(--font-mono); font-size:11px; font-weight:600;
+    background:var(--bad); color:#fff; border:none; border-radius:6px;
+    padding:9px 16px; cursor:pointer; white-space:nowrap;
+  }
+  .alert-banner .banner-ack:hover{ opacity:.85; }
+
+  /* ============================================================
+     SECTION 1 — HEALTH SCORE + SENSOR GRID
+  ============================================================ */
+  .top-row{
+  display:grid;
+  grid-template-columns:220px 1fr;
+  gap:10px;
+  margin-bottom:16px;
+ }
+  .card{
+    background:var(--panel);
+    border:1px solid var(--border);
+    border-radius:var(--radius-md);
+    padding:18px;
+  }
+  .card h2{
+    font-size:12px; font-family:var(--font-mono); letter-spacing:.03em;
+    color:var(--text-dim); font-weight:500; margin-bottom:14px;
+  }
+
+  .health-card{ display:flex; flex-direction:column; align-items:center; text-align:center; }
+  .gauge-wrap{
+  position:relative;
+  width:145px;
+  height:145px;
+  margin:4px 0 8px;
+}
+
+.gauge-wrap svg{
+  width:100%;
+  height:100%;
+  transform:rotate(-90deg);
+}
+
+.gauge-track{
+  fill:none;
+  stroke:url(#gaugeZoneGrad);
+  stroke-width:12;
+}
+
+.gauge-fill{
+  fill:none;
+  stroke:#45E58A;
+  stroke-width:12;
+  stroke-linecap:round;
+  transition:stroke-dashoffset 1s ease, stroke 1s ease;
+}
+
+.gauge-center{
+  position:absolute;
+  inset:0;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+}
+
+.gauge-center .num{
+  font-family:var(--font-mono);
+  font-size:34px;
+  font-weight:700;
+  line-height:1;
+  color:#45E58A;
+}
+
+.gauge-center .lbl{
+  font-size:11px;
+  color:var(--text-dim);
+  letter-spacing:.06em;
+  margin-top:4px;
+}
+  .health-meta{ display:flex; gap:18px; margin-top:6px; }
+  .health-meta div{ text-align:center; }
+ .health-meta .v{
+  font-family:var(--font-mono);
+  font-size:14px;
+  font-weight:600;
+  color:#45E58A;
+}
+  .health-meta .k{ font-size:10px; color:var(--text-faint); margin-top:2px; }
+  .health-description{
+  font-size:10px;
+  line-height:1.4;
+  color:#B8C0C8;
+  max-width:170px;
+}
+
+  .sensor-grid{
+    display:grid; grid-template-columns:repeat(3, 1fr); gap:12px;
+  }
+  .sensor-tile{
+    background:var(--panel); border:1px solid var(--border); border-radius:var(--radius-md);
+    padding:14px 15px; position:relative; overflow:hidden;
+    transition:border-color .3s, background .3s;
+  }
+  .tile-badge{
+    font-family:var(--font-mono); font-size:9.5px; letter-spacing:.03em;
+    padding:2px 7px; border-radius:9px; flex-shrink:0; margin-left:8px;
+  }
+  .tile-badge.critical{ background:rgba(229,72,77,.18); color:var(--bad); }
+  .tile-badge.warning{ background:rgba(242,183,5,.18); color:var(--warn); }
+  .sensor-tile.crit{
+    border-color:var(--bad);
+    background:linear-gradient(180deg, rgba(229,72,77,.10), rgba(229,72,77,.02));
+  }
+  .sensor-tile.warn-flag{
+    border-color:var(--warn);
+    background:linear-gradient(180deg, rgba(242,183,5,.10), rgba(242,183,5,.02));
+  }
+  .sensor-tile::after{
+  content:"";
+  position:absolute;
+  left:0;
+  right:0;
+  bottom:0;
+  height:2px;
+  opacity:.8;
+}
+
+.sensor-tile.temperature::after{
+  background:#B66CFF;
+}
+
+.sensor-tile.vibration::after{
+  background:#35B9FF;
+}
+
+.sensor-tile.speed::after{
+  background:#45E58A;
+}
+
+.sensor-tile.load::after{
+  background:#FFC247;
+}
+
+.sensor-tile.alignment::after{
+  background:#A970FF;
+}
+
+.sensor-tile.current::after{
+  background:#FF9F45;
+}
+  .sensor-tile .top{ display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:10px;}
+  .sensor-tile .name{
+  display:flex;
+  align-items:center;
+  gap:9px;
+  font-size:11px;
+  color:#AEB7C2;
+  font-family:var(--font-mono);
+  letter-spacing:.02em;
+}
+  .sensor-tile .icon{
+  width:32px;
+  height:32px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  border-radius:8px;
+  font-size:17px;
+  font-family:var(--font-mono);
+  flex-shrink:0;
+}
+
+.sensor-tile.temperature .icon{
+  color:#F2B705;
+  background:rgba(242,183,5,.12);
+}
+
+.sensor-tile.vibration .icon{
+  color:#35B0C7;
+  background:rgba(53,176,199,.12);
+}
+
+.sensor-tile.speed .icon{
+  color:#8B7CF6;
+  background:rgba(139,124,246,.12);
+}
+
+.sensor-tile.load .icon{
+  color:#3FB950;
+  background:rgba(63,185,80,.12);
+}
+
+.sensor-tile.alignment .icon{
+  color:#FF8C1A;
+  background:rgba(255,140,26,.12);
+}
+  .sensor-tile .val{ font-family:var(--font-mono); font-size:24px; font-weight:600; }
+  /* Vibrant sensor value colors */
+
+.sensor-tile.temperature .val{
+  color:#B66CFF;
+}
+
+.sensor-tile.vibration .val{
+  color:#35B9FF;
+}
+
+.sensor-tile.speed .val{
+  color:#45E58A;
+}
+
+.sensor-tile.load .val{
+  color:#FFC247;
+}
+
+.sensor-tile.alignment .val{
+  color:#A970FF;
+}
+
+.sensor-tile.current .val{
+  color:#FF9F45;
+}
+.sensor-tile.temperature .val span{
+  color:#D7B7FF;
+}
+
+.sensor-tile.vibration .val span{
+  color:#9DDEFF;
+}
+
+.sensor-tile.speed .val span{
+  color:#A9F5C8;
+}
+
+.sensor-tile.load .val span{
+  color:#FFE09A;
+}
+
+.sensor-tile.alignment .val span{
+  color:#D0B2FF;
+}
+
+.sensor-tile.current .val span{
+  color:#FFCFA3;
+}
+/* Vibrant sensor trend lines */
+
+.sensor-tile.temperature .range i{
+  background:#B66CFF;
+}
+
+.sensor-tile.vibration .range i{
+  background:#35B9FF;
+}
+
+.sensor-tile.speed .range i{
+  background:#45E58A;
+}
+
+.sensor-tile.load .range i{
+  background:#FFC247;
+}
+
+.sensor-tile.alignment .range i{
+  background:#A970FF;
+}
+
+.sensor-tile.current .range i{
+  background:#FF9F45;
+}
+/* Vibrant sensor icons */
+
+.sensor-tile.temperature .icon{
+  color:#B66CFF;
+  background:rgba(182,108,255,.12);
+}
+
+.sensor-tile.vibration .icon{
+  color:#35B9FF;
+  background:rgba(53,185,255,.12);
+}
+
+.sensor-tile.speed .icon{
+  color:#45E58A;
+  background:rgba(69,229,138,.12);
+}
+
+.sensor-tile.load .icon{
+  color:#FFC247;
+  background:rgba(255,194,71,.12);
+}
+
+.sensor-tile.alignment .icon{
+  color:#A970FF;
+  background:rgba(169,112,255,.12);
+}
+
+.sensor-tile.current .icon{
+  color:#FF9F45;
+  background:rgba(255,159,69,.12);
+}
+  .sensor-tile .val span{ font-size:13px; color:var(--text-dim); font-weight:400; margin-left:2px;}
+  .sensor-tile .range{ margin-top:8px; height:3px; border-radius:2px; background:var(--gauge-track); overflow:hidden;}
+  .sensor-tile .range i{ display:block; height:100%; background:var(--accent-2); border-radius:2px; }
+  .sensor-tile.warn .val{ color:var(--warn); }
+  .sensor-tile.warn .range i{ background:var(--warn); }
+
+  /* ---- delta line + sparkline (matches the reference screenshot) ---- */
+  .sensor-tile .delta{ font-family:var(--font-mono); font-size:10.5px; margin-top:6px; color:var(--text-faint); }
+  .sensor-tile .delta.up{ color:var(--bad); }
+  .sensor-tile .delta.down{ color:var(--good); }
+  .sensor-tile .spark{ width:100%; height:32px; margin-top:8px; display:block; overflow:visible; }
+  .sensor-tile .spark polyline{ fill:none; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; }
+ .sensor-tile.temperature .spark polyline{
+  stroke:#B66CFF;
+}
+
+.sensor-tile.vibration .spark polyline{
+  stroke:#35B9FF;
+}
+
+.sensor-tile.speed .spark polyline{
+  stroke:#45E58A;
+}
+
+.sensor-tile.load .spark polyline{
+  stroke:#FFC247;
+}
+
+.sensor-tile.alignment .spark polyline{
+  stroke:#A970FF;
+}
+  /* ============================================================
+     SECTION 2 — DIGITAL TWIN
+  ============================================================ */
+  .three-twin-container {
+    width: 100%;
+    height: 420px;
+    position: relative;
+    overflow: hidden;
+    border-radius: 14px;
+}
+ <div id="threeTwin" class="three-twin-container">
+    <iframe 
+        src="small_conveyor_viewer.html"
+        style="width:100%; height:100%; border:none; border-radius:14px;">
+    </iframe>
+</div>
+
+  /* ============================================================
+     SECTION 3 — ANALYSIS + GRAPHS
+  ============================================================ */
+  .analysis-grid{
+    display:grid;
+    grid-template-columns: 1fr 1fr 320px;
+    gap:16px;
+  }
+  .chart-card .chart-top{ display:flex; justify-content:space-between; align-items:baseline; margin-bottom:2px;}
+  .chart-card .chart-val{ font-family:var(--font-mono); font-size:20px; font-weight:600; }
+  .chart-card .chart-delta{ font-family:var(--font-mono); font-size:11px; }
+  .chart-card .chart-delta.up{ color:var(--bad); }
+  .chart-card .chart-delta.down{ color:var(--good); }
+  .chart-card svg{ width:100%; height:90px; margin-top:10px; }
+
+  .predictions-card ul{ list-style:none; }
+  .pred-item{ padding:10px 0; border-bottom:1px solid var(--border); }
+  .pred-item:last-child{ border-bottom:none; padding-bottom:0; }
+  .pred-item .row1{ display:flex; justify-content:space-between; align-items:center; }
+  .pred-item .fault-name{ font-size:13px; font-weight:600; }
+  .pred-item .conf{ font-family:var(--font-mono); font-size:11px; padding:2px 7px; border-radius:10px; }
+  .pred-item .conf.high{ background:rgba(229,72,77,.15); color:var(--bad); }
+  .pred-item .conf.med{ background:rgba(242,183,5,.15); color:var(--warn); }
+  .pred-item .meta{ font-family:var(--font-mono); font-size:10.5px; color:var(--text-faint); margin-top:3px; }
+
+  .alerts-card{ grid-column: 1 / -1; }
+  .alert-row{
+    display:grid; grid-template-columns: 90px 130px 1fr 90px;
+    gap:12px; align-items:center;
+    padding:9px 0; border-bottom:1px solid var(--border);
+    font-size:12.5px;
+  }
+  .alert-row:last-child{ border-bottom:none; }
+  .alert-row .t{ font-family:var(--font-mono); color:var(--text-faint); font-size:11px; }
+  .alert-row .sev{ font-family:var(--font-mono); font-size:10.5px; padding:2px 8px; border-radius:10px; width:fit-content; }
+  .sev.critical{ background:rgba(229,72,77,.15); color:var(--bad); }
+  .sev.warning{ background:rgba(242,183,5,.15); color:var(--warn); }
+  .sev.info{ background:rgba(53,176,199,.15); color:var(--accent-2); }
+  .alert-row .comp{ color:var(--text-dim); }
+  /* ============================================================
+   WHY THIS STATUS PANEL
+============================================================ */
+
+.why-status-card{
+  grid-column: 1 / -1;
+  background:var(--panel);
+  border:1px solid var(--border);
+  border-radius:var(--radius-md);
+  padding:22px;
+}
+
+.why-status-header{
+  display:flex;
+  align-items:flex-start;
+  gap:14px;
+  margin-bottom:18px;
+}
+
+.why-status-icon{
+  width:32px;
+  height:32px;
+  border-radius:50%;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  color:var(--bad);
+  border:2px solid var(--bad);
+  font-family:var(--font-mono);
+  font-size:18px;
+  flex-shrink:0;
+}
+
+.why-status-title{
+  font-family:var(--font-mono);
+  font-size:16px;
+  font-weight:600;
+  letter-spacing:.03em;
+}
+
+.why-status-subtitle{
+  font-size:12px;
+  color:var(--text-dim);
+  margin-top:5px;
+}
+
+.why-status-list{
+  border:1px solid var(--border);
+  border-radius:var(--radius-md);
+  overflow:hidden;
+}
+
+.why-item{
+  display:flex;
+  align-items:center;
+  gap:16px;
+  padding:13px 16px;
+  border-bottom:1px solid var(--border);
+}
+
+.why-item:last-child{
+  border-bottom:none;
+}
+
+.why-item-icon{
+  width:42px;
+  height:42px;
+  border-radius:50%;
+  background:rgba(229,72,77,.12);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  color:var(--bad);
+  font-size:20px;
+  flex-shrink:0;
+}
+
+.why-item-content{
+  min-width:0;
+}
+
+.why-item-title{
+  font-size:13px;
+  font-weight:600;
+  color:var(--text);
+}
+
+.why-item-description{
+  font-size:11.5px;
+  color:var(--text-dim);
+  margin-top:5px;
+}
+
+.why-empty{
+  padding:20px;
+  text-align:center;
+  font-family:var(--font-mono);
+  font-size:12px;
+  color:var(--good);
+}
+
+  /* ============================================================
+     FIELD (mobile) TEMPLATE OVERRIDES
+  ============================================================ */
+  html[data-template="field"] .page{
+    max-width:420px; padding:20px 14px 0;
+  }
+  html[data-template="field"] .top-row{ grid-template-columns:1fr; }
+  html[data-template="field"] .sensor-grid{ grid-template-columns:repeat(2,1fr); }
+  html[data-template="field"] .analysis-grid{ grid-template-columns:1fr; }
+  html[data-template="field"] .gauge-wrap{ width:150px; height:150px; }
+  html[data-template="field"] .gauge-center .num{ font-size:32px; }
+  html[data-template="field"] .alert-row{ grid-template-columns:70px 1fr; row-gap:2px; }
+  html[data-template="field"] .alert-row .comp, html[data-template="field"] .alert-row .sev{ grid-column:2; }
+  html[data-template="field"] .dash-header{ flex-direction:column; align-items:flex-start; }
+
+  @media(max-width:900px){
+    .top-row{ grid-template-columns:1fr; }
+    .sensor-grid{ grid-template-columns:repeat(2,1fr); }
+    .analysis-grid{ grid-template-columns:1fr 1fr; }
+    .alerts-card{ grid-column:1/-1; }
+  }
+  @media(max-width:560px){
+    .sensor-grid{ grid-template-columns:repeat(2,1fr); }
+    .analysis-grid{ grid-template-columns:1fr; }
+  }
+/* FINAL SENSOR COLORS */
+
+.sensor-tile.temperature .val{
+  color:#B66CFF !important;
+}
+
+.sensor-tile.vibration .val{
+  color:#35B9FF !important;
+}
+
+.sensor-tile.speed .val{
+  color:#45E58A !important;
+}
+
+.sensor-tile.load .val{
+  color:#FFC247 !important;
+}
+
+.sensor-tile.alignment .val{
+  color:#A970FF !important;
+}
+
+.sensor-tile.current .val{
+  color:#FF9F45 !important;
+}
+</style>
+</head>
+<body>
+
+<div class="switcher">
+  <button data-tpl="command" class="active">01 · COMMAND DECK — control room</button>
+  <button data-tpl="daylight">02 · DAYLIGHT OPS — shift supervisor tablet</button>
+  <button data-tpl="field">03 · FIELD COMPACT — handheld / mobile</button>
+</div>
+
+<!-- ============================================================= -->
+<!-- Shared page markup is injected 3x (one per template) so each  -->
+<!-- can be viewed/copied independently.                            -->
+<!-- ============================================================= -->
+
+<div class="page active" id="page-command"></div>
+<div class="page" id="page-daylight"></div>
+<div class="page" id="page-field"></div>
+
+<template id="dashboard-template">
+  <div class="alert-banner">
+    <div class="banner-icon">!</div>
+    <div class="banner-body">
+      <div class="banner-title">CRITICAL CONDITION — CB-104 OVERLAND CONVEYOR 4A</div>
+      <div class="banner-chips"></div>
+    </div>
+    <div class="banner-meta">active <span class="banner-elapsed">1s</span></div>
+    <button class="banner-ack">ACKNOWLEDGE</button>
+  </div>
+
+  <header class="dash-header">
+    <div class="title-block">
+      <h1>CB-104 · Overland Conveyor 4A</h1>
+      <div class="sub">North Pit → Crusher Station 2 · 640m run</div>
+    </div>
+    <div style="display:flex; gap:8px; align-items:center;">
+      <div class="status-pill severity-pill normal"><span class="dot"></span> NORMAL</div>
+      <div class="status-pill"><span class="dot live"></span> LIVE · updated <span class="ts">2s ago</span></div>
+    </div>
+  </header>
+
+  <!-- SECTION 1: HEALTH + SENSORS -->
+  <section class="top-row">
+    <div class="card health-card">
+      <h2>BELT HEALTH SCORE</h2>
+      <div class="gauge-wrap">
+        <svg viewBox="0 0 180 180">
+          <defs>
+            <linearGradient id="gaugeZoneGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" stop-color="#3FB950"/>
+              <stop offset="50%" stop-color="#F2B705"/>
+              <stop offset="100%" stop-color="#E5484D"/>
+            </linearGradient>
+          </defs>
+          <circle class="gauge-track" cx="90" cy="90" r="78" stroke="url(#gaugeZoneGrad)" opacity="0.35"/>
+          <circle class="gauge-fill" cx="90" cy="90" r="78" stroke-dasharray="490" stroke-dashoffset="115"/>
+        </svg>
+        <div class="gauge-center">
+          <div class="num">76</div>
+          <div class="lbl">FAIR — WATCH</div>
+        </div>
+      </div>
+            <div class="health-description">
+        System is operating within normal parameters
+      </div>
+    </div>
+
+   <div class="sensor-grid">
+<div class="sensor-tile temperature warn" data-sensor-tile="temperature">
+  <div class="top">
+  <span class="name">
+    <span class="icon">
+  <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+    <path d="M14 14.76V5a4 4 0 0 0-8 0v9.76a6 6 0 1 0 8 0Z"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.8"/>
+    <path d="M10 5v9"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.8"
+          stroke-linecap="round"/>
+  </svg>
+</span>
+    TEMPERATURE
+  </span>
+  <span class="tile-badge"></span>
+</div>
+  <div class="val" data-sensor="temperature">71<span>°C</span></div>
+  <div class="delta up">▲ 3 °C vs yesterday</div>
+  <svg class="spark" viewBox="0 0 120 34" preserveAspectRatio="none"><polyline points="0,26 15,25 30,23 45,22 60,18 75,16 90,12 105,9 120,7"/></svg>
+</div>
+<div class="sensor-tile vibration" data-sensor-tile="vibration">
+  <div class="top">
+  <span class="name">
+    <span class="icon">
+  <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+    <path d="M3 12h3l2-6 4 12 2-6h7"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.8"
+          stroke-linecap="round"
+          stroke-linejoin="round"/>
+  </svg>
+</span>
+    VIBRATION
+  </span>
+  <span class="tile-badge"></span>
+</div>
+  <div class="val" data-sensor="vibration">4.8<span>mm/s</span></div>
+  <div class="delta up">▲ 0.6 mm/s vs yesterday</div>
+  <svg class="spark" viewBox="0 0 120 34" preserveAspectRatio="none"><polyline points="0,24 15,24 30,23 45,21 60,20 75,17 90,15 105,11 120,8"/></svg>
+</div>
+
+      <div class="sensor-tile speed" data-sensor-tile="speed">
+        <div class="top">
+  <span class="name">
+    <span class="icon">
+  <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+    <path d="M4 16a8 8 0 1 1 16 0"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.8"
+          stroke-linecap="round"/>
+    <path d="M12 12l4-3"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.8"
+          stroke-linecap="round"/>
+    <path d="M7 18h10"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.8"
+          stroke-linecap="round"/>
+  </svg>
+</span>
+    BELT SPEED
+  </span>
+  <span class="tile-badge"></span>
+</div>
+        <div class="val" data-sensor="speed">3.2<span>m/s</span></div>
+        <div class="delta">– 0 m/s vs yesterday</div>
+        <svg class="spark" viewBox="0 0 120 34" preserveAspectRatio="none"><polyline points="0,17 15,18 30,16 45,17 60,17 75,16 90,18 105,17 120,16"/></svg>
+      </div>
+      <div class="sensor-tile current" data-sensor-tile="current">
+        <div class="top">
+  <span class="name">
+    <span class="icon">
+  <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+    <path d="M13 2 4 14h6l-1 8 9-12h-6l1-8Z"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.8"
+          stroke-linecap="round"
+          stroke-linejoin="round"/>
+  </svg>
+</span>
+    MOTOR CURRENT
+  </span>
+  <span class="tile-badge"></span>
+</div>
+        <div class="val" data-sensor="current">58<span>A</span></div>
+        <div class="delta">– 0 A vs yesterday</div>
+        <svg class="spark" viewBox="0 0 120 34" preserveAspectRatio="none"><polyline points="0,20 15,19 30,20 45,18 60,19 75,17 90,18 105,16 120,17"/></svg>
+      </div>
+      <div class="sensor-tile alignment" data-sensor-tile="alignment">
+        <div class="top">
+  <span class="name">
+    <span class="icon">
+  <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+    <circle cx="12" cy="12" r="7"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.8"/>
+    <circle cx="12" cy="12" r="2"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.8"/>
+    <path d="M12 2v3M12 19v3M2 12h3M19 12h3"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.8"
+          stroke-linecap="round"/>
+  </svg>
+</span>
+    ALIGNMENT
+  </span>
+  <span class="tile-badge"></span>
+</div>
+        <div class="val" data-sensor="tracking">0.5<span>mm</span></div>
+        <div class="delta">– 0 mm vs yesterday</div>
+        <svg class="spark" viewBox="0 0 120 34" preserveAspectRatio="none"><polyline points="0,20 15,19 30,21 45,18 60,20 75,19 90,21 105,18 120,19"/></svg>
+      </div>
+      <div class="sensor-tile load" data-sensor-tile="load">
+        <div class="top">
+  <span class="name">
+    <span class="icon">
+  <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+    <path d="M5 7h14"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.8"
+          stroke-linecap="round"/>
+    <path d="M7 7v11h10V7"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.8"/>
+    <path d="M9 4h6v3H9z"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.8"/>
+    <path d="M9 11h6M9 15h6"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.8"
+          stroke-linecap="round"/>
+  </svg>
+</span>
+    LOAD
+  </span>
+  <span class="tile-badge"></span>
+</div>
+        <div class="val" data-sensor="load">81<span>%</span></div>
+        <div class="delta down">▼ 2 % vs yesterday</div>
+        <svg class="spark" viewBox="0 0 120 34" preserveAspectRatio="none"><polyline points="0,10 15,12 30,11 45,14 60,13 75,16 90,15 105,18 120,17"/></svg>
+      </div>
+    </div>
+  </section>
+
+  <!-- SECTION 2: DIGITAL TWIN -->
+  <section class="card twin-section">
+    <div class="head-row">
+      <h2>DIGITAL TWIN — REAL-TIME MIRROR</h2>
+      <div class="status-pill" style="border:none; background:transparent; padding:0;">3D view</div>
+    </div>
+    <svg class="twin-canvas" viewBox="0 0 900 220">
+      <!-- belt loop -->
+      <rect x="130" y="70" width="640" height="80" rx="40" fill="none" stroke="#555E66" stroke-width="3"/>
+      <rect class="belt-path" x="130" y="70" width="640" height="80" rx="40" fill="none" stroke="var(--accent-2)" stroke-width="3" opacity="0.9"/>
+
+      <!-- tail pulley -->
+      <g transform="translate(150,110)">
+        <circle class="roller" r="26" fill="var(--panel-2)" stroke="#6B747C" stroke-width="3"/>
+        <line class="roller" x1="0" y1="-26" x2="0" y2="26" stroke="#6B747C" stroke-width="2"/>
+        <line class="roller" x1="-26" y1="0" x2="26" y2="0" stroke="#6B747C" stroke-width="2"/>
+        <text x="0" y="52" text-anchor="middle" fill="var(--text-dim)" font-family="JetBrains Mono" font-size="11">TAIL PULLEY</text>
+      </g>
+
+      <!-- head pulley -->
+      <g transform="translate(750,110)">
+        <circle class="roller" r="26" fill="var(--panel-2)" stroke="#6B747C" stroke-width="3"/>
+        <line class="roller" x1="0" y1="-26" x2="0" y2="26" stroke="#6B747C" stroke-width="2"/>
+        <line class="roller" x1="-26" y1="0" x2="26" y2="0" stroke="#6B747C" stroke-width="2"/>
+        <text x="0" y="52" text-anchor="middle" fill="var(--text-dim)" font-family="JetBrains Mono" font-size="11">HEAD PULLEY</text>
+      </g>
+
+      <!-- idler rollers along the top -->
+      <g transform="translate(330,70)">
+        <circle class="roller" r="12" fill="var(--panel-2)" stroke="#6B747C" stroke-width="2"/>
+      </g>
+      <g transform="translate(450,70)">
+        <circle class="roller" r="12" fill="var(--panel-2)" stroke="#6B747C" stroke-width="2"/>
+      </g>
+      <g transform="translate(570,70)">
+        <circle class="roller" r="12" fill="var(--panel-2)" stroke="#6B747C" stroke-width="2"/>
+      </g>
+
+      <!-- motor -->
+      <g transform="translate(750,150)">
+        <rect x="-22" y="0" width="44" height="30" rx="4" fill="var(--panel-2)" stroke="#6B747C" stroke-width="2"/>
+        <text x="0" y="48" text-anchor="middle" fill="var(--text-dim)" font-family="JetBrains Mono" font-size="11">DRIVE MOTOR</text>
+      </g>
+
+      <!-- fault marker on belt splice -->
+      <g transform="translate(450,150)">
+        <circle class="fault-ping" r="6" fill="var(--bad)" opacity="0.6"/>
+        <circle r="6" fill="var(--bad)"/>
+        <text x="0" y="26" text-anchor="middle" fill="var(--bad)" font-family="JetBrains Mono" font-size="11">SPLICE JOINT — WATCH</text>
+      </g>
+    </svg>
+
+    <div class="twin-legend">
+      <div class="legend-chip ok"><span class="dot"></span> Head pulley — nominal</div>
+      <div class="legend-chip ok"><span class="dot"></span> Tail pulley — nominal</div>
+      <div class="legend-chip ok"><span class="dot"></span> Idler rollers (3) — nominal</div>
+      <div class="legend-chip watch"><span class="dot"></span> Belt splice joint — elevated wear</div>
+      <div class="legend-chip ok"><span class="dot"></span> Drive motor — nominal</div>
+    </div>
+  </section>
+   </section>
+
+  <!-- ============================================================
+       WHY THIS STATUS
+  ============================================================ -->
+
+  <section class="why-status-card">
+
+    <div class="why-status-header">
+
+      <div class="why-status-icon">!</div>
+
+      <div>
+        <div class="why-status-title">WHY THIS STATUS?</div>
+
+        <div class="why-status-subtitle">
+          These factors contributed to the current system status.
+        </div>
+      </div>
+
+    </div>
+
+
+    <div class="why-status-list" id="why-status-list">
+
+      <!-- Items will be generated from FastAPI -->
+
+      <div class="why-empty">
+        Waiting for sensor data...
+      </div>
+
+    </div>
+
+  </section>
+
+  <!-- SECTION 3: ANALYSIS + GRAPHS -->
+  <section class="analysis-grid">
+    <div class="card chart-card">
+      <h2>VIBRATION TREND — 24H</h2>
+      <div class="chart-top">
+        <div class="chart-val">4.8 mm/s</div>
+        <div class="chart-delta up">▲ 0.6 vs. yesterday</div>
+      </div>
+      <svg viewBox="0 0 300 90" preserveAspectRatio="none">
+        <polyline points="0,60 30,58 60,55 90,50 120,48 150,40 180,36 210,30 240,24 270,18 300,14"
+          fill="none" stroke="var(--bad)" stroke-width="2"/>
+      </svg>
+    </div>
+
+    <div class="card chart-card">
+      <h2>MOTOR TEMPERATURE — 24H</h2>
+      <div class="chart-top">
+        <div class="chart-val">71 °C</div>
+        <div class="chart-delta down">▼ 2° vs. yesterday</div>
+      </div>
+      <svg viewBox="0 0 300 90" preserveAspectRatio="none">
+        <polyline points="0,30 30,28 60,34 90,32 120,40 150,38 180,44 210,42 240,46 270,44 300,50"
+          fill="none" stroke="var(--accent-2)" stroke-width="2"/>
+      </svg>
+    </div>
+
+    <div class="card predictions-card">
+      <h2>FAULT PREDICTIONS</h2>
+      <ul>
+        <li class="pred-item">
+          <div class="row1"><span class="fault-name">Belt splice wear</span><span class="conf high">82%</span></div>
+          <div class="meta">Est. failure window: 5–8 days</div>
+        </li>
+        <li class="pred-item">
+          <div class="row1"><span class="fault-name">Idler bearing drag</span><span class="conf med">54%</span></div>
+          <div class="meta">Est. failure window: 3–4 weeks</div>
+        </li>
+        <li class="pred-item">
+          <div class="row1"><span class="fault-name">Mistracking drift</span><span class="conf med">61%</span></div>
+          <div class="meta">Est. failure window: 10–14 days</div>
+        </li>
+      </ul>
+    </div>
+
+    <div class="card alerts-card">
+      <h2>RECENT ALERTS</h2>
+      <div class="alert-row">
+        <span class="t">08:14</span>
+        <span class="sev warning">WARNING</span>
+        <span class="comp">Belt splice joint — vibration spike above threshold (4.6→4.8 mm/s)</span>
+        <span class="t">CB-104</span>
+      </div>
+      <div class="alert-row">
+        <span class="t">06:02</span>
+        <span class="sev info">INFO</span>
+        <span class="comp">Load cycle peak — 81% capacity during shift changeover</span>
+        <span class="t">CB-104</span>
+      </div>
+      <div class="alert-row">
+        <span class="t">Yesterday</span>
+        <span class="sev critical">CRITICAL</span>
+        <span class="comp">Belt tracking offset exceeded 15mm — auto-correction engaged</span>
+        <span class="t">CB-104</span>
+      </div>
+    </div>
+  </section>
+</template>
+
+<script>
+  const tpl = document.getElementById('dashboard-template');
+
+  // Create all 3 dashboard templates
+  ['command', 'daylight', 'field'].forEach(id => {
+    document.getElementById('page-' + id).appendChild(
+      tpl.content.cloneNode(true)
+    );
+  });
+
+
+  // ==========================================
+  // TEMPLATE SWITCHER
+  // ==========================================
+
+  const buttons = document.querySelectorAll('.switcher button');
+
+  buttons.forEach(btn => {
+
+    btn.addEventListener('click', () => {
+
+      buttons.forEach(b => {
+        b.classList.remove('active');
+      });
+
+      btn.classList.add('active');
+
+      document.querySelectorAll('.page').forEach(page => {
+        page.classList.remove('active');
+      });
+
+      const templateName = btn.dataset.tpl;
+
+      document
+        .getElementById('page-' + templateName)
+        .classList.add('active');
+
+      document.documentElement.setAttribute(
+        'data-template',
+        templateName
+      );
+
+    });
+
+  });
+
+
+  // ==========================================
+  // ALERT BANNER — ACKNOWLEDGE BUTTON
+  // ==========================================
+  document.querySelectorAll('.banner-ack').forEach(btn => {
+    btn.addEventListener('click', () => {
+      btn.closest('.alert-banner').style.display = 'none';
+    });
+  });
+
+
+  // ==========================================
+  // CONNECT TO FASTAPI
+  // ==========================================
+
+  async function updateDashboard() {
+
+    try {
+
+      // Get health data from FastAPI
+      const response = await fetch(
+        "http://127.0.0.1:8000/health"
+      );
+
+
+      // Check if FastAPI responded correctly
+      if (!response.ok) {
+
+        throw new Error(
+          "FastAPI returned HTTP " + response.status
+        );
+
+      }
+
+
+      // Convert response to JSON
+      const health = await response.json();
+
+      console.log("Health data:", health);
+
+
+      // ========================================
+      // UPDATE ALL DASHBOARD TEMPLATES
+      // ========================================
+
+      document.querySelectorAll('.page').forEach(page => {
+
+
+        // --------------------------------------
+        // FIND HTML ELEMENTS
+        // --------------------------------------
+
+        // --------------------------------------
+// FIND HTML ELEMENTS
+// --------------------------------------
+
+const scoreElement =
+  page.querySelector('.gauge-center .num');
+
+const labelElement =
+  page.querySelector('.gauge-center .lbl');
+
+const gaugeElement =
+  page.querySelector('.gauge-fill');
+
+const timestampElement =
+  page.querySelector('.ts');
+
+// Sensor elements
+const vibrationElement =
+  page.querySelector('[data-sensor="vibration"]');
+
+const temperatureElement =
+  page.querySelector('[data-sensor="temperature"]');
+
+const speedElement =
+  page.querySelector('[data-sensor="speed"]');
+
+const currentElement =
+  page.querySelector('[data-sensor="current"]');
+
+const trackingElement =
+  page.querySelector('[data-sensor="tracking"]');
+
+const loadElement =
+  page.querySelector('[data-sensor="load"]');
+const whyStatusList =
+  page.querySelector('#why-status-list');
+
+        // --------------------------------------
+        // HEALTH SCORE
+        // --------------------------------------
+
+        const score =
+          Number(health.health_score ?? 0);
+
+
+        if (scoreElement) {
+
+          scoreElement.textContent =
+            Math.round(score);
+
+        }
+
+
+        // --------------------------------------
+        // SEVERITY
+        // --------------------------------------
+
+        const severity =
+          health.severity || "Unknown";
+
+
+        if (labelElement) {
+
+          if (severity === "Normal") {
+
+            labelElement.textContent =
+              "GOOD — NORMAL";
+
+          }
+
+          else if (severity === "Warning") {
+
+            labelElement.textContent =
+              "WARNING — WATCH";
+
+          }
+
+          else if (severity === "Critical") {
+
+            labelElement.textContent =
+              "CRITICAL";
+
+          }
+
+          else {
+
+            labelElement.textContent =
+              "WAITING FOR DATA";
+
+          }
+
+        }
+
+
+        // --------------------------------------
+        // UPDATE CIRCULAR GAUGE
+        // --------------------------------------
+
+        if (gaugeElement) {
+
+          const circumference = 490;
+
+
+          // Keep score between 0 and 100
+          const safeScore =
+            Math.max(
+              0,
+              Math.min(100, score)
+            );
+
+
+          // Calculate gauge length
+          const offset =
+            circumference -
+            (safeScore / 100) * circumference;
+
+
+          gaugeElement.style.strokeDashoffset =
+            offset;
+
+
+          // Change gauge colour
+          // depending on severity
+
+          if (severity === "Normal") {
+
+            gaugeElement.style.stroke =
+              "var(--good)";
+
+          }
+
+          else if (severity === "Warning") {
+
+            gaugeElement.style.stroke =
+              "var(--warn)";
+
+          }
+
+          else if (severity === "Critical") {
+
+            gaugeElement.style.stroke =
+              "var(--bad)";
+
+          }
+
+          else {
+
+            gaugeElement.style.stroke =
+              "var(--accent-2)";
+
+          }
+
+        }
+
+
+        // --------------------------------------
+        // UPDATE TIMESTAMP
+        // --------------------------------------
+
+        if (timestampElement) {
+
+          timestampElement.textContent =
+            "just now";
+
+        }
+        // ========================================
+// UPDATE SENSOR VALUES
+// ========================================
+
+if (vibrationElement) {
+  vibrationElement.firstChild.textContent =
+    health.vibration ?? "--";
+}
+
+if (temperatureElement) {
+  temperatureElement.firstChild.textContent =
+    health.temperature ?? "--";
+}
+
+if (speedElement) {
+  speedElement.firstChild.textContent =
+    health.speed ?? "--";
+}
+
+if (currentElement) {
+  currentElement.firstChild.textContent =
+    health.current ?? "--";
+}
+
+if (trackingElement) {
+  trackingElement.firstChild.textContent =
+    health.tracking ?? "--";
+}
+
+if (loadElement) {
+  loadElement.firstChild.textContent =
+    health.load ?? "--";
+}
+// ========================================
+// WHY THIS STATUS
+// ========================================
+
+if (whyStatusList) {
+
+  const reasons = health.why_status || [];
+
+  if (reasons.length === 0) {
+
+    whyStatusList.innerHTML = `
+      <div class="why-empty">
+        All monitored parameters are within the normal range.
+      </div>
+    `;
+
+  } else {
+
+    whyStatusList.innerHTML = reasons.map(reason => {
+
+      let icon = "⚠";
+
+      if (reason.toLowerCase().includes("temperature")) {
+        icon = "🌡";
+      }
+      else if (reason.toLowerCase().includes("vibration")) {
+        icon = "〽";
+      }
+      else if (reason.toLowerCase().includes("flame")) {
+        icon = "🔥";
+      }
+      else if (reason.toLowerCase().includes("ml")) {
+        icon = "ML";
+      }
+      else if (reason.toLowerCase().includes("threshold")) {
+        icon = "!";
+      }
+
+      return `
+        <div class="why-item">
+
+          <div class="why-item-icon">
+            ${icon}
+          </div>
+
+          <div class="why-item-content">
+
+            <div class="why-item-title">
+              ${reason}
+            </div>
+
+            <div class="why-item-description">
+              Detected from the current conveyor sensor data.
+            </div>
+
+          </div>
+
+        </div>
+      `;
+
+    }).join("");
+
+  }
+
+}
+
+// ============================================================
+// NEW: visual severity state (banner / pill / tile badges / twin)
+// Purely additive — reads the same `severity` and `health.why_status`
+// that were already parsed above. Does not touch the fetch/JSON code.
+// ============================================================
+const reasonsForUI = health.why_status || [];
+const severityKey = severity.toLowerCase(); // "normal" | "warning" | "critical"
+
+// -- header severity pill --
+const severityPillEl = page.querySelector('.severity-pill');
+if (severityPillEl) {
+  severityPillEl.classList.remove('normal', 'warning', 'critical');
+  severityPillEl.classList.add(
+    ['normal', 'warning', 'critical'].includes(severityKey) ? severityKey : 'normal'
+  );
+  severityPillEl.innerHTML =
+    '<span class="dot"></span> ' + severity.toUpperCase();
+}
+
+// -- top critical alert banner --
+const bannerEl = page.querySelector('.alert-banner');
+if (bannerEl) {
+  if (severityKey === 'critical') {
+    bannerEl.style.display = 'flex';
+    const chipsWrap = bannerEl.querySelector('.banner-chips');
+    if (chipsWrap) {
+      chipsWrap.innerHTML = reasonsForUI.length
+        ? reasonsForUI.map(r => '<span class="banner-chip">' + r + '</span>').join('')
+        : '<span class="banner-chip">Critical health score</span>';
+    }
+  } else {
+    bannerEl.style.display = 'none';
+  }
+}
+
+// -- health score number color + description text --
+if (scoreElement) {
+  scoreElement.style.color =
+    severityKey === 'critical' ? 'var(--bad)' :
+    severityKey === 'warning'  ? 'var(--warn)' :
+    'var(--good)';
+}
+const healthDescEl = page.querySelector('.health-description');
+if (healthDescEl) {
+  if (severityKey === 'critical') {
+    healthDescEl.textContent = 'Critical condition detected. Stop and inspect the flagged components.';
+  } else if (severityKey === 'warning') {
+    healthDescEl.textContent = 'Elevated readings detected. Monitor closely and plan an inspection.';
+  } else {
+    healthDescEl.textContent = 'System is operating within normal parameters.';
+  }
+}
+
+// -- per-sensor tile crit/warn borders + badges --
+const tileKeywordMap = {
+  temperature: ['temperature'],
+  vibration:   ['vibration'],
+  speed:       ['speed'],
+  current:     ['current', 'motor current', 'amp'],
+  alignment:   ['align', 'tracking', 'mistrack'],
+  load:        ['load']
+};
+page.querySelectorAll('.sensor-tile').forEach(tile => {
+  tile.classList.remove('crit', 'warn-flag');
+  const badge = tile.querySelector('.tile-badge');
+  if (badge) badge.textContent = '';
+});
+Object.entries(tileKeywordMap).forEach(([tileKey, keywords]) => {
+  const tile = page.querySelector('.sensor-tile[data-sensor-tile="' + tileKey + '"]');
+  if (!tile) return;
+  const matched = reasonsForUI.some(r =>
+    keywords.some(k => r.toLowerCase().includes(k))
+  );
+  const badge = tile.querySelector('.tile-badge');
+  if (matched && severityKey === 'critical') {
+    tile.classList.add('crit');
+    if (badge) { badge.textContent = 'CRITICAL'; badge.className = 'tile-badge critical'; }
+  } else if (matched && severityKey === 'warning') {
+    tile.classList.add('warn-flag');
+    if (badge) { badge.textContent = 'WARNING'; badge.className = 'tile-badge warning'; }
+  }
+});
+
+// -- digital twin fault marker + legend --
+const twinMarker = page.querySelector('.twin-canvas .fault-ping')?.closest('g');
+const twinLegend = page.querySelector('.twin-legend');
+if (twinMarker && twinLegend) {
+  const motorFlagged = reasonsForUI.some(r => r.toLowerCase().includes('temperature') || r.toLowerCase().includes('motor'));
+  const beltFlagged = reasonsForUI.some(r => r.toLowerCase().includes('vibration') || r.toLowerCase().includes('splice') || r.toLowerCase().includes('align'));
+
+  if (severityKey !== 'normal' && (motorFlagged || beltFlagged)) {
+    twinMarker.style.display = '';
+    const label = twinMarker.querySelector('text');
+    const dotColor = severityKey === 'critical' ? 'var(--bad)' : 'var(--warn)';
+    twinMarker.querySelectorAll('circle').forEach(c => c.setAttribute('fill', dotColor));
+    if (label) {
+      label.setAttribute('fill', dotColor);
+      if (motorFlagged) {
+        twinMarker.setAttribute('transform', 'translate(750,150)');
+        label.textContent = 'MOTOR TEMPERATURE ' + severity.toUpperCase() + ' — ' + severity.toUpperCase();
+      } else {
+        twinMarker.setAttribute('transform', 'translate(450,150)');
+        label.textContent = 'BELT SPLICE JOINT — ' + severity.toUpperCase();
+      }
+    }
+  } else {
+    twinMarker.style.display = 'none';
+  }
+
+  twinLegend.querySelectorAll('.legend-chip').forEach(chip => {
+    chip.classList.remove('ok', 'watch', 'fault');
+    const text = chip.textContent.toLowerCase();
+    let state = 'ok';
+    if (motorFlagged && text.includes('drive motor')) {
+      state = severityKey === 'critical' ? 'fault' : 'watch';
+    } else if (beltFlagged && (text.includes('belt') || text.includes('splice'))) {
+      state = severityKey === 'critical' ? 'fault' : 'watch';
+    }
+    chip.classList.add(state);
+  });
+}
+      });
+
+    }
+
+
+    // ==========================================
+    // ERROR HANDLING
+    // ==========================================
+
+    catch (error) {
+
+      console.error(
+        "Backend connection failed:",
+        error
+      );
+
+    }
+
+  }
+
+
+  // ==========================================
+  // START LIVE DASHBOARD
+  // ==========================================
+
+  // Get data immediately
+  updateDashboard();
+
+
+  // Get new data every 3 seconds
+  setInterval(
+    updateDashboard,
+    3000
+  );
+
+</script>
+
+</body>
+</html>
