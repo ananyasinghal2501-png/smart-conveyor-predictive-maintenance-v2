@@ -1,92 +1,158 @@
 import pandas as pd
+import joblib
+
+from pathlib import Path
 
 from sklearn.model_selection import train_test_split
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.metrics import accuracy_score, classification_report
-import joblib
+from sklearn.metrics import (
+    accuracy_score,
+    classification_report,
+    confusion_matrix
+)
 
 
-# -----------------------------------
-# 1. Load the dataset
-# -----------------------------------
+# ==========================================
+# FILE PATHS
+# ==========================================
 
-data = pd.read_csv("dataset.csv")
+BASE_DIR = Path(__file__).parent
 
-print("Dataset loaded successfully!")
-print(data.head())
+DATASET_PATH = BASE_DIR / "dataset.csv"
+MODEL_PATH = BASE_DIR / "conveyor_model.pkl"
 
 
-# -----------------------------------
-# 2. Separate inputs and output
-# -----------------------------------
+# ==========================================
+# LOAD DATASET
+# ==========================================
 
-X = data[
-    [
-        "temperature",
-        "vibration",
-        "gyro",
-        "flame"
-    ]
+df = pd.read_csv(DATASET_PATH)
+
+print("\nDataset loaded successfully")
+print("Total rows:", len(df))
+
+print("\nClass distribution:")
+print(df["fault"].value_counts())
+
+
+# ==========================================
+# FEATURES
+# ==========================================
+
+FEATURES = [
+    "object_temperature",
+    "ambient_temperature",
+    "vibration",
+    "alignment",
+    "load"
 ]
 
-y = data["fault"]
+TARGET = "fault"
+
+X = df[FEATURES]
+y = df[TARGET]
 
 
-# -----------------------------------
-# 3. Split data into training/testing
-# -----------------------------------
+# ==========================================
+# TRAIN / TEST SPLIT
+# ==========================================
 
 X_train, X_test, y_train, y_test = train_test_split(
     X,
     y,
-    test_size=0.2,
+    test_size=0.25,
     random_state=42,
     stratify=y
 )
 
+print("\nTraining samples:", len(X_train))
+print("Testing samples:", len(X_test))
 
-# -----------------------------------
-# 4. Create the Random Forest model
-# -----------------------------------
+
+# ==========================================
+# RANDOM FOREST
+# ==========================================
 
 model = RandomForestClassifier(
-    n_estimators=100,
+    n_estimators=300,
+    class_weight="balanced",
     random_state=42
 )
 
-
-# -----------------------------------
-# 5. Train the model
-# -----------------------------------
-
-print("\nTraining model...")
-
 model.fit(X_train, y_train)
 
-print("Training completed!")
 
+# ==========================================
+# MODEL TEST
+# ==========================================
 
-# -----------------------------------
-# 6. Test the model
-# -----------------------------------
+predictions = model.predict(X_test)
 
-y_pred = model.predict(X_test)
+accuracy = accuracy_score(
+    y_test,
+    predictions
+)
 
-accuracy = accuracy_score(y_test, y_pred)
+print("\n================================")
+print("MODEL RESULTS")
+print("================================")
 
-print("\nModel Accuracy:")
-print(f"{accuracy * 100:.2f}%")
-
+print(f"\nAccuracy: {accuracy * 100:.2f}%")
 
 print("\nClassification Report:")
-print(classification_report(y_test, y_pred))
+
+print(
+    classification_report(
+        y_test,
+        predictions,
+        zero_division=0
+    )
+)
+
+print("\nConfusion Matrix:")
+
+print(
+    confusion_matrix(
+        y_test,
+        predictions
+    )
+)
 
 
-# -----------------------------------
-# 7. Save the trained model
-# -----------------------------------
+# ==========================================
+# FEATURE IMPORTANCE
+# ==========================================
 
-joblib.dump(model, "conveyor_model.pkl")
+print("\nFeature Importance:")
 
-print("\nModel saved successfully!")
-print("File: conveyor_model.pkl")
+importance_table = pd.DataFrame({
+    "Feature": FEATURES,
+    "Importance": model.feature_importances_
+}).sort_values(
+    by="Importance",
+    ascending=False
+)
+
+print(
+    importance_table.to_string(index=False)
+)
+
+
+# ==========================================
+# SAVE MODEL
+# ==========================================
+
+joblib.dump(
+    model,
+    MODEL_PATH
+)
+
+print("\n================================")
+print("MODEL SAVED SUCCESSFULLY")
+print("================================")
+
+print("Saved at:")
+print(MODEL_PATH)
+
+print("\nClasses learned:")
+print(model.classes_)

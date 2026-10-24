@@ -1,0 +1,1661 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<title>Smart Conveyor Digital Twin</title>
+
+<style>
+html,
+body {
+    margin: 0;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background: #14171a;
+}
+
+canvas {
+    display: block;
+}
+
+#status {
+    position: absolute;
+    top: 14px;
+    left: 14px;
+    z-index: 10;
+
+    padding: 7px 11px;
+    border-radius: 7px;
+
+    font-family: monospace;
+    font-size: 11px;
+
+    background: rgba(0, 0, 0, 0.55);
+    color: #4b7bff;
+
+    pointer-events: none;
+}
+</style>
+
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.180.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.180.0/examples/jsm/"
+  }
+}
+</script>
+</head>
+
+
+<body>
+
+<div id="status">
+DIGITAL TWIN CONNECTING...
+</div>
+
+
+<script type="module">
+
+import * as THREE from "three";
+
+import {
+    OrbitControls
+} from "three/addons/controls/OrbitControls.js";
+
+import {
+    GLTFLoader
+} from "three/addons/loaders/GLTFLoader.js";
+
+
+/* =========================================================
+   CONFIG
+========================================================= */
+
+const API_URL =
+    "http://127.0.0.1:8000/health";
+
+const MODEL_URL =
+    "./assets/conveyor.glb";
+
+
+const STATE_COLORS = {
+
+    Normal:
+        new THREE.Color(
+            0.05,
+            0.25,
+            1.0
+        ),
+
+    Warning:
+        new THREE.Color(
+            1.0,
+            0.30,
+            0.0
+        ),
+
+    Critical:
+        new THREE.Color(
+            1.0,
+            0.0,
+            0.0
+        )
+};
+
+
+/* =========================================================
+   SCENE
+========================================================= */
+
+const scene =
+    new THREE.Scene();
+
+scene.background =
+    new THREE.Color(
+        0x14171a
+    );
+
+
+/* =========================================================
+   CAMERA
+========================================================= */
+
+const camera =
+    new THREE.PerspectiveCamera(
+        42,
+        window.innerWidth /
+        window.innerHeight,
+        0.001,
+        100
+    );
+
+
+/* =========================================================
+   RENDERER
+========================================================= */
+
+const renderer =
+    new THREE.WebGLRenderer({
+        antialias: true
+    });
+
+renderer.setSize(
+    window.innerWidth,
+    window.innerHeight
+);
+
+renderer.setPixelRatio(
+    Math.min(
+        window.devicePixelRatio,
+        2
+    )
+);
+
+renderer.outputColorSpace =
+    THREE.SRGBColorSpace;
+
+document.body.appendChild(
+    renderer.domElement
+);
+
+
+/* =========================================================
+   LIGHTS
+========================================================= */
+
+scene.add(
+    new THREE.HemisphereLight(
+        0xffffff,
+        0x303840,
+        2.6
+    )
+);
+
+
+const mainLight =
+    new THREE.DirectionalLight(
+        0xffffff,
+        3
+    );
+
+mainLight.position.set(
+    4,
+    7,
+    5
+);
+
+scene.add(
+    mainLight
+);
+
+
+const fillLight =
+    new THREE.DirectionalLight(
+        0xffffff,
+        1.5
+    );
+
+fillLight.position.set(
+    -5,
+    3,
+    -3
+);
+
+scene.add(
+    fillLight
+);
+
+
+/* =========================================================
+   CONTROLS
+========================================================= */
+
+const controls =
+    new OrbitControls(
+        camera,
+        renderer.domElement
+    );
+
+controls.enableDamping = true;
+
+controls.dampingFactor = 0.06;
+
+controls.enableZoom = true;
+
+controls.enablePan = true;
+
+
+/* =========================================================
+   REFERENCES
+========================================================= */
+
+let conveyor = null;
+
+let belt = null;
+
+let drivePulley = null;
+
+let tailPulley = null;
+
+let thermalSensor = null;
+
+let vibrationSensor = null;
+
+let flameSensor = null;
+
+let loadCell = null;
+
+let loadCellDriver = null;
+
+
+let beltTexture = null;
+
+let mixer = null;
+
+let hasGLTFAnimation = false;
+
+
+let conveyorRunning = false;
+
+let conveyorSpeed = 0;
+
+
+/* =========================================================
+   FIND OBJECT
+========================================================= */
+
+function findObject(name) {
+
+    if (!conveyor)
+        return null;
+
+
+    let found = null;
+
+
+    conveyor.traverse(
+        object => {
+
+            if (
+                object.name === name ||
+                object.name.startsWith(
+                    name + "."
+                )
+            ) {
+
+                if (!found)
+                    found = object;
+            }
+
+        }
+    );
+
+
+    return found;
+}
+
+
+/* =========================================================
+   CREATE BELT GROOVE TEXTURE
+========================================================= */
+
+function createGrooveTexture() {
+
+    const canvas =
+        document.createElement(
+            "canvas"
+        );
+
+
+    canvas.width = 512;
+    canvas.height = 128;
+
+
+    const ctx =
+        canvas.getContext(
+            "2d"
+        );
+
+
+    /* dark rubber base */
+
+    ctx.fillStyle =
+        "#15181b";
+
+    ctx.fillRect(
+        0,
+        0,
+        canvas.width,
+        canvas.height
+    );
+
+
+    /*
+       Grooves go across conveyor width.
+       Texture moves along X.
+    */
+
+    for (
+        let x = 0;
+        x < canvas.width;
+        x += 24
+    ) {
+
+        /* recessed groove */
+
+        ctx.fillStyle =
+            "#050607";
+
+        ctx.fillRect(
+            x,
+            0,
+            8,
+            canvas.height
+        );
+
+
+        /* slight raised highlight */
+
+        ctx.fillStyle =
+            "#343a40";
+
+        ctx.fillRect(
+            x + 8,
+            0,
+            5,
+            canvas.height
+        );
+
+
+        /* rubber surface */
+
+        ctx.fillStyle =
+            "#1e2327";
+
+        ctx.fillRect(
+            x + 13,
+            0,
+            11,
+            canvas.height
+        );
+    }
+
+
+    const texture =
+        new THREE.CanvasTexture(
+            canvas
+        );
+
+
+    texture.wrapS =
+        THREE.RepeatWrapping;
+
+    texture.wrapT =
+        THREE.RepeatWrapping;
+
+
+    texture.repeat.set(
+        1,
+        1
+    );
+
+
+    texture.colorSpace =
+        THREE.SRGBColorSpace;
+
+
+    return texture;
+}
+
+
+/* =========================================================
+   CREATE PLANAR UVs FOR BELT
+
+   Blender procedural materials don't export cleanly to GLB.
+   This gives the belt predictable browser UVs.
+========================================================= */
+
+function generateBeltUVs(mesh) {
+
+    const geometry =
+        mesh.geometry;
+
+
+    if (!geometry)
+        return;
+
+
+    geometry.computeBoundingBox();
+
+
+    const box =
+        geometry.boundingBox;
+
+
+    if (!box)
+        return;
+
+
+    const size =
+        new THREE.Vector3();
+
+
+    box.getSize(
+        size
+    );
+
+
+    /*
+       Find two largest local geometry dimensions.
+
+       Largest = conveyor length
+       Second = belt width
+    */
+
+    const dimensions = [
+
+        {
+            axis: "x",
+            size: size.x
+        },
+
+        {
+            axis: "y",
+            size: size.y
+        },
+
+        {
+            axis: "z",
+            size: size.z
+        }
+
+    ];
+
+
+    dimensions.sort(
+        (a, b) =>
+            b.size - a.size
+    );
+
+
+    const longAxis =
+        dimensions[0].axis;
+
+    const widthAxis =
+        dimensions[1].axis;
+
+
+    const position =
+        geometry.attributes.position;
+
+
+    const uvArray =
+        new Float32Array(
+            position.count * 2
+        );
+
+
+    const vertex =
+        new THREE.Vector3();
+
+
+    function getAxisValue(
+        vector,
+        axis
+    ) {
+
+        if (axis === "x")
+            return vector.x;
+
+        if (axis === "y")
+            return vector.y;
+
+        return vector.z;
+    }
+
+
+    const minLong =
+        getAxisValue(
+            box.min,
+            longAxis
+        );
+
+    const maxLong =
+        getAxisValue(
+            box.max,
+            longAxis
+        );
+
+
+    const minWidth =
+        getAxisValue(
+            box.min,
+            widthAxis
+        );
+
+    const maxWidth =
+        getAxisValue(
+            box.max,
+            widthAxis
+        );
+
+
+    const longRange =
+        Math.max(
+            maxLong - minLong,
+            0.00001
+        );
+
+
+    const widthRange =
+        Math.max(
+            maxWidth - minWidth,
+            0.00001
+        );
+
+
+    for (
+        let i = 0;
+        i < position.count;
+        i++
+    ) {
+
+        vertex.fromBufferAttribute(
+            position,
+            i
+        );
+
+
+        const u =
+            (
+                getAxisValue(
+                    vertex,
+                    longAxis
+                )
+                -
+                minLong
+            )
+            /
+            longRange;
+
+
+        const v =
+            (
+                getAxisValue(
+                    vertex,
+                    widthAxis
+                )
+                -
+                minWidth
+            )
+            /
+            widthRange;
+
+
+        uvArray[
+            i * 2
+        ] =
+            u;
+
+
+        uvArray[
+            i * 2 + 1
+        ] =
+            v;
+    }
+
+
+    geometry.setAttribute(
+
+        "uv",
+
+        new THREE.BufferAttribute(
+            uvArray,
+            2
+        )
+
+    );
+}
+
+
+/* =========================================================
+   APPLY BELT MATERIAL
+========================================================= */
+
+function setupBelt() {
+
+    if (!belt) {
+
+        console.warn(
+            "Belt object not found."
+        );
+
+        return;
+    }
+
+
+    beltTexture =
+        createGrooveTexture();
+
+
+    belt.traverse(
+        child => {
+
+            if (!child.isMesh)
+                return;
+
+
+            generateBeltUVs(
+                child
+            );
+
+
+            const material =
+                new THREE.MeshStandardMaterial({
+
+                    map:
+                        beltTexture,
+
+                    roughness:
+                        0.88,
+
+                    metalness:
+                        0.02,
+
+                    color:
+                        0xffffff
+
+                });
+
+
+            child.material =
+                material;
+        }
+    );
+
+
+    /*
+       Lots of narrow transverse grooves.
+    */
+
+    beltTexture.repeat.set(
+        16,
+        1
+    );
+
+
+    beltTexture.needsUpdate =
+        true;
+
+
+    console.log(
+        "Belt grooves applied."
+    );
+}
+
+
+/* =========================================================
+   SENSOR MATERIAL
+========================================================= */
+
+function setSensorState(
+    object,
+    state
+) {
+
+    if (!object)
+        return;
+
+
+    const color =
+        STATE_COLORS[state] ||
+        STATE_COLORS.Normal;
+
+
+    object.traverse(
+        child => {
+
+            if (!child.isMesh)
+                return;
+
+
+            /*
+               Clone ONCE only.
+               Prevent memory/material duplication every poll.
+            */
+
+            if (
+                !child.userData.dtMaterial
+            ) {
+
+                child.material =
+                    child.material.clone();
+
+
+                child.userData.dtMaterial =
+                    true;
+            }
+
+
+            if (
+                child.material.color
+            ) {
+
+                child.material.color.copy(
+                    color
+                );
+            }
+
+
+            if (
+                child.material.emissive
+            ) {
+
+                child.material.emissive.copy(
+                    color
+                );
+
+
+                child.material.emissiveIntensity =
+                    0.28;
+            }
+
+
+            child.material.needsUpdate =
+                true;
+        }
+    );
+}
+
+
+/* =========================================================
+   SENSOR LOGIC
+========================================================= */
+
+function updateSensors(
+    data
+) {
+
+    const temperature =
+        Number(
+            data.object_temperature ??
+            0
+        );
+
+
+    const vibration =
+        Number(
+            data.vibration ??
+            0
+        );
+
+
+    const alignment =
+        Math.abs(
+            Number(
+                data.alignment ??
+                0
+            )
+        );
+
+
+    const flame =
+        Number(
+            data.flame ??
+            1
+        );
+
+
+    /* thermal */
+
+    let thermalState =
+        "Normal";
+
+
+    if (
+        temperature >= 80
+    ) {
+
+        thermalState =
+            "Critical";
+    }
+
+    else if (
+        temperature >= 70
+    ) {
+
+        thermalState =
+            "Warning";
+    }
+
+
+    /* vibration */
+
+    let vibrationState =
+        "Normal";
+
+
+    if (
+        vibration >= 8
+    ) {
+
+        vibrationState =
+            "Critical";
+    }
+
+    else if (
+        vibration >= 5
+    ) {
+
+        vibrationState =
+            "Warning";
+    }
+
+
+    /* alignment */
+
+    let alignmentState =
+        "Normal";
+
+
+    if (
+        alignment >= 1.0
+    ) {
+
+        alignmentState =
+            "Critical";
+    }
+
+    else if (
+        alignment >= 0.5
+    ) {
+
+        alignmentState =
+            "Warning";
+    }
+
+
+    /*
+       same physical vibration /
+       alignment sensor
+    */
+
+    const priority = {
+
+        Normal: 0,
+        Warning: 1,
+        Critical: 2
+
+    };
+
+
+    const combinedState =
+
+        priority[
+            alignmentState
+        ]
+
+        >
+
+        priority[
+            vibrationState
+        ]
+
+        ?
+
+        alignmentState
+
+        :
+
+        vibrationState;
+
+
+    /* flame */
+
+    const flameState =
+
+        flame === 0
+
+        ?
+
+        "Critical"
+
+        :
+
+        "Normal";
+
+
+    setSensorState(
+        thermalSensor,
+        thermalState
+    );
+
+
+    setSensorState(
+        vibrationSensor,
+        combinedState
+    );
+
+
+    setSensorState(
+        flameSensor,
+        flameState
+    );
+
+
+    setSensorState(
+        loadCell,
+        "Normal"
+    );
+
+
+    setSensorState(
+        loadCellDriver,
+        "Normal"
+    );
+}
+
+
+/* =========================================================
+   CAMERA FIT
+
+   Much closer than your current view.
+========================================================= */
+
+function fitCameraToModel() {
+
+    const box =
+        new THREE.Box3();
+
+
+    box.setFromObject(
+        conveyor
+    );
+
+
+    const center =
+        box.getCenter(
+            new THREE.Vector3()
+        );
+
+
+    const size =
+        box.getSize(
+            new THREE.Vector3()
+        );
+
+
+    /*
+       Put model centre at world origin.
+    */
+
+    conveyor.position.sub(
+        center
+    );
+
+
+    /*
+       Recalculate after centering.
+    */
+
+    box.setFromObject(
+        conveyor
+    );
+
+
+    const sphere =
+        new THREE.Sphere();
+
+
+    box.getBoundingSphere(
+        sphere
+    );
+
+
+    const radius =
+        sphere.radius;
+
+
+    /*
+       Clean elevated 3/4 view.
+    */
+
+    camera.position.set(
+
+    -radius * 1.35,
+
+    radius * 1.15,
+
+    -radius * 1.65
+
+);
+
+
+    camera.lookAt(
+        0,
+        0,
+        0
+    );
+
+
+    controls.target.set(
+        0,
+        0,
+        0
+    );
+
+
+    controls.minDistance =
+        radius * 0.6;
+
+
+    controls.maxDistance =
+        radius * 6;
+
+
+    controls.update();
+
+
+    console.log(
+        "Camera fitted.",
+        radius
+    );
+}
+
+
+/* =========================================================
+   LOAD GLB
+========================================================= */
+
+const loader =
+    new GLTFLoader();
+
+
+loader.load(
+
+    MODEL_URL,
+
+
+    gltf => {
+
+
+        conveyor =
+            gltf.scene;
+
+
+        scene.add(
+            conveyor
+        );
+
+
+        /* -----------------------------------------
+           Hide Blender's floating status text.
+
+           Dashboard already shows status itself.
+        ----------------------------------------- */
+
+        const blenderStatus =
+            conveyor.getObjectByName(
+                "DigitalTwin_Status"
+            );
+
+
+        if (
+            blenderStatus
+        ) {
+
+            blenderStatus.visible =
+                false;
+        }
+
+
+        /* -----------------------------------------
+           Find important parts
+        ----------------------------------------- */
+
+        belt =
+            findObject(
+                "Belt"
+            );
+
+
+        drivePulley =
+            findObject(
+                "Drive_Pulley"
+            );
+
+
+        tailPulley =
+            findObject(
+                "Tail_Pulley"
+            );
+
+
+        thermalSensor =
+            findObject(
+                "Sensor_Thermal"
+            );
+
+
+        vibrationSensor =
+            findObject(
+                "Sensor_Vibration"
+            );
+
+
+        flameSensor =
+            findObject(
+                "Sensor_Flame"
+            );
+
+
+        loadCell =
+            findObject(
+                "Sensor_LoadCell"
+            );
+
+
+        loadCellDriver =
+            findObject(
+                "Load_Cell_Driver"
+            );
+
+
+        /* -----------------------------------------
+           Debug exported names
+        ----------------------------------------- */
+
+        console.log(
+            "===== CONVEYOR OBJECTS ====="
+        );
+
+
+        conveyor.traverse(
+            object => {
+
+                if (
+                    object.name
+                ) {
+
+                    console.log(
+                        object.name
+                    );
+                }
+
+            }
+        );
+
+
+        console.log(
+            "Belt:",
+            belt
+        );
+
+        console.log(
+            "Drive pulley:",
+            drivePulley
+        );
+
+        console.log(
+            "Tail pulley:",
+            tailPulley
+        );
+
+        console.log(
+            "Thermal:",
+            thermalSensor
+        );
+
+        console.log(
+            "Vibration:",
+            vibrationSensor
+        );
+
+        console.log(
+            "Flame:",
+            flameSensor
+        );
+
+
+        /* -----------------------------------------
+           Belt grooves
+        ----------------------------------------- */
+
+        setupBelt();
+
+
+        /* -----------------------------------------
+           Blender pulley animation
+        ----------------------------------------- */
+
+        if (
+            gltf.animations &&
+            gltf.animations.length > 0
+        ) {
+
+            mixer =
+                new THREE.AnimationMixer(
+                    conveyor
+                );
+
+
+            gltf.animations.forEach(
+                clip => {
+
+                    const action =
+                        mixer.clipAction(
+                            clip
+                        );
+
+
+                    action.play();
+                }
+            );
+
+
+            hasGLTFAnimation =
+                true;
+
+
+            console.log(
+                "GLB animation found:",
+                gltf.animations.length
+            );
+        }
+
+        else {
+
+            console.warn(
+                "No GLB animation found. Using pulley fallback."
+            );
+        }
+
+
+        /* -----------------------------------------
+           Camera AFTER status text hidden
+        ----------------------------------------- */
+
+        fitCameraToModel();
+
+
+        document.getElementById(
+            "status"
+        ).textContent =
+            "DIGITAL TWIN ONLINE";
+
+
+        console.log(
+            "Digital twin loaded."
+        );
+    },
+
+
+    progress => {
+
+        console.log(
+            "Loading conveyor..."
+        );
+    },
+
+
+    error => {
+
+        console.error(
+            "MODEL LOAD ERROR:",
+            error
+        );
+
+
+        document.getElementById(
+            "status"
+        ).textContent =
+            "MODEL LOAD ERROR";
+    }
+);
+
+
+/* =========================================================
+   READ FASTAPI
+========================================================= */
+
+async function updateDigitalTwin() {
+
+    try {
+
+        const response =
+            await fetch(
+
+                API_URL,
+
+                {
+                    cache:
+                        "no-store"
+                }
+            );
+
+
+        if (
+            !response.ok
+        ) {
+
+            throw new Error(
+                "HTTP " +
+                response.status
+            );
+        }
+
+
+        const data =
+            await response.json();
+
+
+        /* sensors */
+
+        updateSensors(
+            data
+        );
+
+
+        /* speed */
+
+        conveyorSpeed =
+            Number(
+                data.speed ??
+                0
+            );
+
+
+        conveyorRunning =
+            conveyorSpeed > 0;
+
+
+        /* status */
+
+        const severity =
+            data.severity ||
+            "Normal";
+
+
+        const status =
+            document.getElementById(
+                "status"
+            );
+
+
+        status.textContent =
+
+            `STATUS: ${severity.toUpperCase()} · SPEED: ${conveyorSpeed}%`;
+
+
+        if (
+            severity ===
+            "Critical"
+        ) {
+
+            status.style.color =
+                "#ff3636";
+        }
+
+        else if (
+            severity ===
+            "Warning"
+        ) {
+
+            status.style.color =
+                "#ff8c1a";
+        }
+
+        else {
+
+            status.style.color =
+                "#4b7bff";
+        }
+
+    }
+
+    catch (
+        error
+    ) {
+
+        console.error(
+            "FastAPI error:",
+            error
+        );
+
+
+        conveyorRunning =
+            false;
+
+
+        const status =
+            document.getElementById(
+                "status"
+            );
+
+
+        status.textContent =
+            "BACKEND OFFLINE";
+
+
+        status.style.color =
+            "#ff3636";
+    }
+}
+
+
+/* =========================================================
+   BACKEND POLLING
+========================================================= */
+
+updateDigitalTwin();
+
+
+setInterval(
+    updateDigitalTwin,
+    3000
+);
+
+
+/* =========================================================
+   RENDER / MOTION LOOP
+========================================================= */
+
+let previousTime =
+    performance.now();
+
+
+function animate(
+    currentTime
+) {
+
+    requestAnimationFrame(
+        animate
+    );
+
+
+    const delta =
+        Math.min(
+
+            (
+                currentTime -
+                previousTime
+            )
+            /
+            1000,
+
+            0.1
+        );
+
+
+    previousTime =
+        currentTime;
+
+
+    const speedFactor =
+
+        Math.max(
+            conveyorSpeed,
+            0
+        )
+        /
+        100;
+
+
+    if (
+        conveyorRunning
+    ) {
+
+
+        /* =========================================
+           MOVING BELT GROOVES
+        ========================================= */
+
+        if (
+            beltTexture
+        ) {
+
+            beltTexture.offset.x +=
+
+                delta *
+                1.6 *
+                Math.max(
+                    speedFactor,
+                    0.15
+                );
+        }
+
+
+        /* =========================================
+           USE EXPORTED BLENDER ANIMATION
+        ========================================= */
+
+        if (
+            mixer &&
+            hasGLTFAnimation
+        ) {
+
+            mixer.update(
+
+                delta *
+                Math.max(
+                    speedFactor,
+                    0.15
+                )
+
+            );
+        }
+
+
+        /* =========================================
+           FALLBACK PULLEY ROTATION
+           only if GLB animation isn't available
+        ========================================= */
+
+        else {
+
+
+            if (
+                drivePulley
+            ) {
+
+                drivePulley.rotateOnAxis(
+
+                    new THREE.Vector3(
+                        0,
+                        1,
+                        0
+                    ),
+
+                    delta *
+                    7 *
+                    Math.max(
+                        speedFactor,
+                        0.15
+                    )
+
+                );
+            }
+
+
+            if (
+                tailPulley
+            ) {
+
+                tailPulley.rotateOnAxis(
+
+                    new THREE.Vector3(
+                        0,
+                        1,
+                        0
+                    ),
+
+                    delta *
+                    7 *
+                    Math.max(
+                        speedFactor,
+                        0.15
+                    )
+
+                );
+            }
+
+        }
+
+    }
+
+
+    controls.update();
+
+
+    renderer.render(
+        scene,
+        camera
+    );
+}
+
+
+requestAnimationFrame(
+    animate
+);
+
+
+/* =========================================================
+   RESIZE
+========================================================= */
+
+window.addEventListener(
+
+    "resize",
+
+    () => {
+
+
+        camera.aspect =
+
+            window.innerWidth /
+            window.innerHeight;
+
+
+        camera.updateProjectionMatrix();
+
+
+        renderer.setSize(
+
+            window.innerWidth,
+            window.innerHeight
+
+        );
+
+    }
+
+);
+
+</script>
+
+</body>
+</html>

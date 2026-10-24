@@ -1,46 +1,183 @@
 import pandas as pd
 import joblib
+from pathlib import Path
 
 
-# Load the trained model
-model = joblib.load("conveyor_model.pkl")
+# ==========================================
+# EXPECTED FEATURES
+# ==========================================
 
-print("Conveyor Fault Prediction System")
-print("--------------------------------")
+FEATURES = [
+    "object_temperature",
+    "ambient_temperature",
+    "vibration",
+    "alignment",
+    "load",
+    "speed",
+    "flame"
+]
 
 
-# Take sensor readings from the user
-temperature = float(input("Enter temperature (°C): "))
-vibration = float(input("Enter vibration: "))
-gyro = float(input("Enter gyro reading: "))
-flame = int(input("Enter flame status (0 = No, 1 = Yes): "))
+# ==========================================
+# MODEL PATH
+# ==========================================
+
+MODEL_PATH = Path(__file__).parent / "conveyor_model.pkl"
 
 
-# Create input data
+print("\nCONVEYOR FAULT PREDICTION SYSTEM")
+print("---------------------------------")
+
+
+# ==========================================
+# TAKE SENSOR VALUES
+# ==========================================
+
+object_temperature = float(
+    input("Enter object temperature (°C): ")
+)
+
+ambient_temperature = float(
+    input("Enter ambient temperature (°C): ")
+)
+
+vibration = float(
+    input("Enter vibration magnitude (Mag): ")
+)
+
+alignment = float(
+    input("Enter alignment deviation (Dev): ")
+)
+
+load = float(
+    input("Enter load (g): ")
+)
+
+speed = float(
+    input("Enter speed (0-100): ")
+)
+
+flame = int(
+    input("Enter flame status (1 = Safe, 0 = Flame Detected): ")
+)
+
+
+# ==========================================
+# DIRECT FIRE SAFETY CHECK
+# ==========================================
+
+if flame == 0:
+
+    print("\n-----------------------------")
+    print("CONVEYOR STATUS")
+    print("-----------------------------")
+
+    print("Predicted Condition: Fire")
+    print("Confidence: 100.00%")
+    print("Severity: CRITICAL")
+    print("Action: Conveyor should be stopped")
+
+    raise SystemExit
+
+
+# ==========================================
+# CREATE INPUT DATA
+# ==========================================
+
 sensor_data = pd.DataFrame([{
-    "temperature": temperature,
+    "object_temperature": object_temperature,
+    "ambient_temperature": ambient_temperature,
     "vibration": vibration,
-    "gyro": gyro,
+    "alignment": alignment,
+    "load": load,
+    "speed": speed,
     "flame": flame
 }])
 
 
-# Make prediction
-prediction = model.predict(sensor_data)[0]
+# ==========================================
+# TRY TO LOAD MODEL
+# ==========================================
+
+try:
+
+    model = joblib.load(MODEL_PATH)
+
+    # Check whether this is the NEW model
+    model_features = list(
+        getattr(model, "feature_names_in_", [])
+    )
 
 
-# Get prediction probabilities
-probabilities = model.predict_proba(sensor_data)[0]
+    if model_features != FEATURES:
 
-classes = model.classes_
+        print("\n-----------------------------")
+        print("DATA COLLECTION MODE")
+        print("-----------------------------")
 
-confidence = probabilities.max() * 100
+        print(
+            "The saved ML model is still the old model."
+        )
+
+        print(
+            "New fault/rupture data is required before retraining."
+        )
+
+        print("\nCurrent sensor reading:")
+
+        print(
+            sensor_data.to_string(index=False)
+        )
 
 
-# Display result
-print("\n-----------------------------")
-print("CONVEYOR AI PREDICTION")
-print("-----------------------------")
+    else:
 
-print(f"Predicted Condition: {prediction}")
-print(f"Confidence: {confidence:.2f}%")
+        # ==================================
+        # ML PREDICTION
+        # ==================================
+
+        prediction = model.predict(
+            sensor_data
+        )[0]
+
+        probabilities = model.predict_proba(
+            sensor_data
+        )[0]
+
+        confidence = (
+            probabilities.max() * 100
+        )
+
+
+        print("\n-----------------------------")
+        print("CONVEYOR AI PREDICTION")
+        print("-----------------------------")
+
+        print(
+            f"Predicted Condition: {prediction}"
+        )
+
+        print(
+            f"Confidence: {confidence:.2f}%"
+        )
+
+
+except Exception as error:
+
+    print("\n-----------------------------")
+    print("DATA COLLECTION MODE")
+    print("-----------------------------")
+
+    print(
+        "ML model is not ready yet."
+    )
+
+    print(
+        "Collect fault/rupture readings before training."
+    )
+
+    print("\nCurrent sensor reading:")
+
+    print(
+        sensor_data.to_string(index=False)
+    )
