@@ -820,3 +820,66 @@ def get_trends():
         "readings":
             sensor_history[-50:]
     }
+
+# ==========================================
+# DIGITAL BLACK BOX — HISTORICAL REPLAY
+# ==========================================
+
+@app.get("/replay/readings")
+def replay_readings(
+    start: datetime,
+    end: datetime,
+    limit: int = 1000
+):
+    if start > end:
+        from fastapi import HTTPException
+        raise HTTPException(
+            status_code=400,
+            detail="Start time must be before end time"
+        )
+
+    limit = max(1, min(limit, 5000))
+
+    db = SessionLocal()
+
+    try:
+        readings = (
+            db.query(SensorReading)
+            .filter(
+                SensorReading.timestamp >= start,
+                SensorReading.timestamp <= end
+            )
+            .order_by(SensorReading.timestamp.asc())
+            .limit(limit)
+            .all()
+        )
+
+        return {
+            "count": len(readings),
+            "start": start.isoformat(),
+            "end": end.isoformat(),
+            "readings": [
+                {
+                    "id": r.id,
+                    "timestamp": (
+                        r.timestamp.isoformat()
+                        if r.timestamp else None
+                    ),
+                    "object_temperature": r.object_temperature,
+                    "ambient_temperature": r.ambient_temperature,
+                    "vibration": r.vibration,
+                    "alignment": r.alignment,
+                    "load": r.load,
+                    "speed": r.speed,
+                    "flame": r.flame,
+                    "prediction": r.prediction,
+                    "confidence": r.confidence,
+                    "severity": r.severity,
+                    "health_score": r.health_score
+                }
+                for r in readings
+            ]
+        }
+
+    finally:
+        db.close()

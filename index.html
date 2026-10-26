@@ -6,13 +6,16 @@
 
 <meta charset="UTF-8">
 
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0"
 
 <title>Smart Conveyor Predictive Maintenance</title>
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
 
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+
+
 
 <style>
 
@@ -428,6 +431,167 @@
   html[data-template="field"] .anomaly-grid{grid-template-columns:1fr}
   @media(max-width:520px){.anomaly-grid{grid-template-columns:1fr}}
 
+
+/* DIGITAL BLACK BOX */
+.black-box-card {
+  position: relative;
+  box-sizing: border-box;
+  padding: 26px !important;
+  margin-top: 18px;
+  overflow: hidden;
+  border: 1px solid #344457 !important;
+  border-radius: 16px !important;
+  background: linear-gradient(140deg, #1c2530, #141a22) !important;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.22) !important;
+}
+
+.black-box-card .section-heading-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.black-box-card h2 {
+  color: #e6f1ff !important;
+  font-size: 16px !important;
+  letter-spacing: 1.4px;
+}
+
+.black-box-card .hint {
+  color: #8296ac !important;
+  font-size: 12px;
+}
+
+.black-box-card .black-box-controls {
+  display: flex;
+  align-items: end;
+  flex-wrap: wrap;
+  gap: 18px;
+  margin: 0 0 22px;
+  padding: 18px;
+  border: 1px solid #303c4b;
+  border-radius: 12px;
+  background: rgba(11, 16, 23, 0.42);
+}
+
+.black-box-card label {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  color: #9eafc3;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+#blackbox-start,
+#blackbox-end {
+  box-sizing: border-box;
+  min-height: 44px;
+  max-width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #3a5068;
+  border-radius: 8px;
+  background: #111a24;
+  color: #e7f2ff;
+  color-scheme: dark;
+  font: inherit;
+}
+
+#blackbox-load {
+  min-height: 44px;
+  padding: 0 20px;
+  border: 1px solid #4ba7ff;
+  border-radius: 8px;
+  background: linear-gradient(135deg, #258be8, #1764ad);
+  color: #fff;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+#blackbox-load:hover {
+  filter: brightness(1.15);
+}
+
+#blackbox-load:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+#blackbox-message {
+  margin: 4px 0 16px;
+  padding: 12px 14px;
+  border: 1px solid #2e4052;
+  border-radius: 8px;
+  background: #19232e;
+  color: #a9c2dc;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+#blackbox-results {
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.blackbox-table-wrap {
+  max-width: 100%;
+  overflow-x: auto;
+  border: 1px solid #344457;
+  border-radius: 10px;
+}
+
+.blackbox-table {
+  width: 100%;
+  min-width: 720px;
+  border-collapse: collapse;
+  text-align: left;
+  font-size: 12px;
+}
+
+.blackbox-table th {
+  padding: 15px 18px;
+  border-bottom: 1px solid #39485a;
+  background: #253447;
+  color: #91cbff;
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.blackbox-table td {
+  padding: 15px 18px;
+  border-top: 1px solid #2e4052;
+  color: #dce7f3;
+  white-space: nowrap;
+}
+
+.blackbox-table tbody tr:hover {
+  background: #202d3b;
+}
+
+@media (max-width: 700px) {
+  .black-box-card {
+    padding: 18px !important;
+  }
+
+  .black-box-card .section-heading-row {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .black-box-card .black-box-controls {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  #blackbox-start,
+  #blackbox-end,
+  #blackbox-load {
+    width: 100%;
+  }
+}
+
 </style>
 
 
@@ -684,6 +848,38 @@
 
   </section>
 
+
+  <!-- DIGITAL BLACK BOX -->
+  <section class="card black-box-card" id="black-box">
+    <div class="section-heading-row">
+      <div>
+        <h2>DIGITAL BLACK BOX — EVENT REPLAY</h2>
+        <div class="hint">Review previously recorded conveyor sensor readings.</div>
+      </div>
+      <span class="status-pill">HISTORICAL DATA</span>
+    </div>
+
+    <div class="black-box-controls">
+      <label>
+        Start time
+        <input type="datetime-local" id="blackbox-start">
+      </label>
+
+      <label>
+        End time
+        <input type="datetime-local" id="blackbox-end">
+      </label>
+
+      <button type="button" id="blackbox-load">Load Recordings</button>
+    </div>
+
+    <div id="blackbox-message" role="status">
+      Select a time range and load saved readings.
+    </div>
+
+    <div id="blackbox-results"></div>
+  </section>
+  <!-- END DIGITAL BLACK BOX -->
 
 
   <section class="why-status-card">
@@ -2209,6 +2405,107 @@ connectWebSocket();
 
 connectWebSocket();
 
+
+  // DIGITAL BLACK BOX — LOAD HISTORICAL READINGS
+  (() => {
+    const startInput = document.getElementById("blackbox-start");
+    const endInput = document.getElementById("blackbox-end");
+    const loadButton = document.getElementById("blackbox-load");
+    const message = document.getElementById("blackbox-message");
+    const results = document.getElementById("blackbox-results");
+
+    if (!startInput || !endInput || !loadButton) return;
+
+    function localDateTime(date) {
+      const pad = n => String(n).padStart(2, "0");
+      return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+    }
+
+    const now = new Date();
+    const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+    startInput.value = localDateTime(yesterday);
+    endInput.value = localDateTime(now);
+
+    function safe(value) {
+      const el = document.createElement("span");
+      el.textContent = value == null ? "--" : String(value);
+      return el.innerHTML;
+    }
+
+    loadButton.addEventListener("click", async () => {
+      const start = startInput.value;
+      const end = endInput.value;
+
+      if (!start || !end) {
+        message.textContent = "Please select both start and end times.";
+        return;
+      }
+
+      if (start > end) {
+        message.textContent = "Start time must be before end time.";
+        return;
+      }
+
+      loadButton.disabled = true;
+      message.textContent = "Loading saved recordings...";
+      results.replaceChildren();
+
+      try {
+        const url = new URL(`${API_BASE}/replay/readings`);
+        url.searchParams.set("start", start + ":00");
+        url.searchParams.set("end", end + ":59");
+        url.searchParams.set("limit", "1000");
+
+        const response = await fetch(url);
+        if (!response.ok) {
+          throw new Error(`API returned HTTP ${response.status}`);
+        }
+
+        const data = await response.json();
+        const readings = data.readings || [];
+
+        message.textContent = `${readings.length} saved reading(s) found.`;
+
+        if (!readings.length) {
+          results.textContent = "No recordings found for this time range. Try another range.";
+          return;
+        }
+
+        results.innerHTML = `
+          <div class="blackbox-table-wrap">
+            <table class="blackbox-table">
+              <thead>
+                <tr>
+                  <th>Timestamp</th>
+                  <th>Prediction</th>
+                  <th>Severity</th>
+                  <th>Object Temp (°C)</th>
+                  <th>Vibration</th>
+                  <th>Health Score</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${readings.map(r => `
+                  <tr>
+                    <td>${safe(r.timestamp)}</td>
+                    <td>${safe(r.prediction)}</td>
+                    <td>${safe(r.severity)}</td>
+                    <td>${safe(r.object_temperature)}</td>
+                    <td>${safe(r.vibration)}</td>
+                    <td>${safe(r.health_score)}</td>
+                  </tr>
+                `).join("")}
+              </tbody>
+            </table>
+          </div>
+        `;
+      } catch (error) {
+        message.textContent = `Could not load recordings: ${error.message}. Check that the backend is running.`;
+      } finally {
+        loadButton.disabled = false;
+      }
+    });
+  })();
 
 
 </script>
