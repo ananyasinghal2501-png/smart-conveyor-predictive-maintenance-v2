@@ -58,6 +58,20 @@ class ConnectionManager:
 manager = ConnectionManager()
 
 
+# Latest camera-vision state; never overwrites the ESP32 alignment/ML inputs.
+camera_state = {
+    "camera_status": "Waiting for camera",
+    "alignment_px": 0.0,
+    "tear_detected": False,
+    "tear_ratio": 0.0,
+    "belt_found": False,
+    "camera_fps": 0.0,
+    "reference_set": False,
+    "camera_timestamp": None,
+    "camera_alert": "Waiting for camera data",
+}
+
+
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
 
@@ -67,6 +81,7 @@ async def websocket_endpoint(websocket: WebSocket):
 
         # Send current state immediately when dashboard connects
         await websocket.send_json(current_state)
+        await websocket.send_json({"type": "camera_update", "camera": camera_state})
 
         while True:
             await websocket.receive_text()
@@ -145,6 +160,16 @@ class SensorData(BaseModel):
     # 1 = SAFE
     # 0 = FLAME DETECTED
     flame: int
+
+
+# Camera measurements are intentionally separate from ESP32 sensor fields.
+class CameraData(BaseModel):
+    alignment_px: float = 0.0
+    tear_detected: bool = False
+    tear_ratio: float = 0.0
+    belt_found: bool = False
+    camera_fps: float = 0.0
+    reference_set: bool = False
 
 
 # ==========================================
@@ -415,6 +440,46 @@ def home():
         "message":
         "Conveyor Monitoring Backend is running!"
     }
+
+
+# ==========================================
+# RECEIVE CAMERA VISION DATA (SEPARATE FROM ESP32)
+# ==========================================
+@app.post("/camera-data")
+async def receive_camera_data(data: CameraData):
+    global camera_state
+
+    tear_detected = bool(data.tear_detected)
+    if tear_detected:
+        status = "POSSIBLE TEAR — INSPECT"
+        alert = "Possible tear flagged by the camera heuristic. Inspect the live frame; this is not a confirmed diagnosis."
+    elif data.belt_found:
+        status = "Camera live · belt found"
+        alert = "No tear flagged by the current visual heuristic."
+    else:
+        status = "Camera live · belt not found"
+        alert = "Camera is sending frames, but the belt could not be isolated."
+
+    camera_state = {
+        "camera_status": status,
+        "alignment_px": round(float(data.alignment_px), 1),
+        "tear_detected": tear_detected,
+        "tear_ratio": round(max(0.0, float(data.tear_ratio)), 4),
+        "belt_found": bool(data.belt_found),
+        "camera_fps": round(max(0.0, float(data.camera_fps)), 1),
+        "reference_set": bool(data.reference_set),
+        "camera_timestamp": datetime.now().isoformat(),
+        "camera_alert": alert,
+    }
+
+    # Broadcast a camera-only message. Existing sensor/ML state stays untouched.
+    await manager.broadcast({"type": "camera_update", "camera": camera_state})
+    return camera_state
+
+
+@app.get("/camera-status")
+def get_camera_status():
+    return camera_state
 
 
 # ==========================================
