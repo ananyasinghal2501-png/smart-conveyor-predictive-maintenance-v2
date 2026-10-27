@@ -1,10 +1,4 @@
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
-from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
-from pathlib import Path
-from datetime import datetime
-from collections import deque
-from statistics import median
+
 
 from database import SessionLocal, engine, Base
 from models import SensorReading
@@ -94,7 +88,10 @@ async def websocket_endpoint(websocket: WebSocket):
 # Allow frontend to communicate with FastAPI
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://127.0.0.1:5500"],
+    allow_origins=[
+        "http://127.0.0.1:5500",
+        "http://localhost:5500",
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -197,7 +194,10 @@ current_state = {
 
     "why_status": [
         "Waiting for sensor data"
-    ]
+    ],
+
+    "sensor_levels": {},
+    "fault_parts": []
 }
 
 
@@ -430,6 +430,134 @@ def generate_status_explanation(
 
 
 # ==========================================
+# FAULT LOCATION  (which part of the 3D model is affected)
+# ==========================================
+# Part keys are neutral names. viewer.html maps them to its own 3D object names,
+# so the backend never needs to know how the Blender model is named.
+#
+#   belt, drive_pulley, tail_pulley,
+#   thermal_sensor, vibration_sensor, flame_sensor, load_cell
+
+LEVEL_RANK = {"Normal": 0, "Warning": 1, "Critical": 2}
+
+# (warning, critical) - same limits viewer.html used before. None = not evaluated.
+SENSOR_LIMITS = {
+    "object_temperature": (70, 80),
+    "vibration": (5, 8),
+    "alignment": (0.5, 1.0),    # compared as abs(value)
+    "load": (None, None),       # TODO: put your real overload limits here
+}
+
+# Each sensor problem lights up ONLY the part that owns that sensor.
+SENSOR_PARTS = {
+    "object_temperature": ["thermal_sensor"],
+    "vibration": ["vibration_sensor"],
+    "alignment": ["belt"],
+    "load": ["load_cell"],
+}
+
+SENSOR_LABELS = {
+    "object_temperature": "Object temperature",
+    "vibration": "Vibration",
+    "alignment": "Belt alignment",
+    "load": "Load",
+}
+
+
+def evaluate_faults(data, prediction):
+    """Returns (sensor_levels, fault_parts). Highest level wins when a part is hit twice."""
+
+    sensor_levels = {}
+    parts = {}
+
+    def mark(part, level, reason):
+        current = parts.get(part)
+        if current is None or LEVEL_RANK[level] > LEVEL_RANK[current["level"]]:
+            parts[part] = {"part": part, "level": level, "reason": reason}
+
+    for key, (warn, crit) in SENSOR_LIMITS.items():
+
+        value = abs(float(getattr(data, key)))
+        level = "Normal"
+
+        if crit is not None and value >= crit:
+            level = "Critical"
+        elif warn is not None and value >= warn:
+            level = "Warning"
+
+        sensor_levels[key] = level
+
+        if level != "Normal":
+            for part in SENSOR_PARTS[key]:
+                mark(part, level, f"{SENSOR_LABELS[key]} {value:g} ({level.lower()})")
+
+    # Flame sensor: 0 = flame detected
+    sensor_levels["flame"] = "Critical" if data.flame == 0 else "Normal"
+
+    if data.flame == 0:
+        mark("flame_sensor", "Critical", "Flame detected")
+
+    # Random Forest result adds its own location
+    if prediction == "joint_defect":
+        mark("belt", "Warning", "ML: joint defect pattern")
+
+    elif prediction == "rupture":
+        mark("belt", "Critical", "ML: rupture pattern")
+
+    elif prediction == "overheat":
+        level = "Critical" if data.object_temperature >= 80 else "Warning"
+        mark("thermal_sensor", level, "ML: overheating pattern")
+
+    fault_parts = sorted(
+        parts.values(),
+        key=lambda p: LEVEL_RANK[p["level"]],
+        reverse=True
+    )
+
+    return sensor_levels, fault_parts
+
+
+# ==========================================
+# FAULT HOLD  (stops 3D colours flashing on and off)
+# ==========================================
+# evaluate_faults() looks at ONE reading. A value hovering at a limit, or a
+# start-up spike, would light a part for a single packet and clear it on the
+# next. Keep each fault visible for FAULT_HOLD_S seconds after it was last seen.
+
+FAULT_HOLD_S = 4.0
+
+_fault_memory = {}
+
+
+def hold_fault_parts(fault_parts):
+    now = time.monotonic()
+    current = {p["part"]: p for p in fault_parts}
+
+    for part, fault in current.items():
+        mem = _fault_memory.get(part)
+        if (
+            mem is None
+            or LEVEL_RANK[fault["level"]] >= LEVEL_RANK[mem["level"]]
+            or now - mem["seen"] >= FAULT_HOLD_S
+        ):
+            _fault_memory[part] = {**fault, "seen": now}
+
+    held = []
+    for part in list(_fault_memory):
+        mem = _fault_memory[part]
+        if part not in current and now - mem["seen"] >= FAULT_HOLD_S:
+            del _fault_memory[part]
+            continue
+        item = {k: v for k, v in mem.items() if k != "seen"}
+        if part not in current:
+            item["held"] = True
+        held.append(item)
+
+    held.sort(key=lambda p: LEVEL_RANK[p["level"]], reverse=True)
+    return held
+
+
+# ==========================================
 # HOME
 # ==========================================
 
@@ -604,6 +732,14 @@ async def receive_sensor_data(data: SensorData):
     if data.flame != 0 and anomaly_detected and severity == "Normal":
         severity = "Warning"
 
+    # SAFETY NET: sensor limits (SENSOR_LIMITS) can RAISE severity above the ML result.
+    # ML alone can say "healthy" for values it never saw in training.
+    sensor_levels, fault_parts = evaluate_faults(data, str(prediction))
+    fault_parts = hold_fault_parts(fault_parts)
+    worst_level = max(sensor_levels.values(), key=lambda lvl: LEVEL_RANK[lvl])
+    if LEVEL_RANK[worst_level] > LEVEL_RANK[severity]:
+        severity = worst_level
+
     # DYNAMIC HEALTH SCORE
     # ======================================
 
@@ -643,6 +779,12 @@ async def receive_sensor_data(data: SensorData):
     else:
 
         health_score = 50
+
+    # Health score must agree with severity (never "100" while Critical)
+    if severity == "Critical":
+        health_score = min(health_score, 30)
+    elif severity == "Warning":
+        health_score = min(health_score, 70)
     # ======================================
     # WHY THIS STATUS?
     # ======================================
@@ -684,7 +826,9 @@ async def receive_sensor_data(data: SensorData):
         "anomaly_detected": anomaly_detected,
         "anomaly_status": anomaly_status,
         "anomaly_score": round(anomaly_score, 5) if anomaly_score is not None else None,
-        "temporal_analysis": temporal_analysis
+        "temporal_analysis": temporal_analysis,
+        "sensor_levels": sensor_levels,
+        "fault_parts": fault_parts
     }
         # Send latest state instantly to connected dashboards
     await manager.broadcast(current_state)
@@ -820,6 +964,8 @@ def get_health():
         "anomaly_status": current_state.get("anomaly_status", "Waiting for readings"),
         "anomaly_score": current_state.get("anomaly_score"),
         "temporal_analysis": current_state.get("temporal_analysis", {}),
+        "sensor_levels": current_state.get("sensor_levels", {}),
+        "fault_parts": current_state.get("fault_parts", []),
 
 
         # Explanation
@@ -948,3 +1094,4 @@ def replay_readings(
 
     finally:
         db.close()
+        
