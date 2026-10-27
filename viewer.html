@@ -6,6 +6,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
 <title>Smart Conveyor Digital Twin</title>
+<link rel="icon" href="data:,">
 
 <style>
 html,
@@ -79,32 +80,15 @@ import {
 const API_URL =
     "http://127.0.0.1:8000/health";
 
+const WS_URL =
+    "ws://127.0.0.1:8000/ws";
+
 const MODEL_URL =
     "./assets/conveyor.glb";
 
-
 const STATE_COLORS = {
-
-    Normal:
-        new THREE.Color(
-            0.05,
-            0.25,
-            1.0
-        ),
-
-    Warning:
-        new THREE.Color(
-            1.0,
-            0.30,
-            0.0
-        ),
-
-    Critical:
-        new THREE.Color(
-            1.0,
-            0.0,
-            0.0
-        )
+    Warning: new THREE.Color(0xffff00),  // Yellow
+    Critical: new THREE.Color(0xff0000)  // Red
 };
 
 
@@ -236,24 +220,32 @@ controls.enablePan = true;
 
 let conveyor = null;
 
-let belt = null;
+/*
+   main.py (evaluate_faults) sends neutral part keys in "fault_parts".
+   Left side  = key sent by FastAPI
+   Right side = node names inside the NEW conveyor.glb
+*/
+const PART_MAP = {
 
-let drivePulley = null;
+    belt:             ["belt_top", "belt_return"],
 
-let tailPulley = null;
+    drive_pulley:     ["roller_0", "motor_body", "motor_shaft"],
 
-let thermalSensor = null;
+    tail_pulley:      ["roller_1"],
 
-let vibrationSensor = null;
+    thermal_sensor:   ["temperature_sensor"],
 
-let flameSensor = null;
+    vibration_sensor: ["vibration_sensor"],
 
-let loadCell = null;
+    flame_sensor:     ["flame_sensor"],
 
-let loadCellDriver = null;
+    load_cell:        ["load_cell", "load_sensor"]
+};
 
+const LEVEL_RANK = { Normal: 0, Warning: 1, Critical: 2 };
 
-let beltTexture = null;
+// key -> [THREE.Object3D, ...]   (filled after the GLB loads)
+const partObjects = {};
 
 let mixer = null;
 
@@ -270,694 +262,281 @@ let conveyorSpeed = 0;
 ========================================================= */
 
 function findObject(name) {
+    if (!conveyor) return null;
 
-    if (!conveyor)
-        return null;
+    let exactMatch = null;
+    let prefixMatch = null;
 
-
-    let found = null;
-
-
-    conveyor.traverse(
-        object => {
-
-            if (
-                object.name === name ||
-                object.name.startsWith(
-                    name + "."
-                )
-            ) {
-
-                if (!found)
-                    found = object;
-            }
-
+    conveyor.traverse(object => {
+        if (object.name === name) {
+            exactMatch = object;
+        } else if (
+            !prefixMatch &&
+            object.name.startsWith(name + ".")
+        ) {
+            prefixMatch = object;
         }
-    );
+    });
 
-
-    return found;
+    // Prefer the exact component, not a similarly named parent.
+    return exactMatch || prefixMatch;
 }
 
 
+
 /* =========================================================
-   CREATE BELT GROOVE TEXTURE
+   PART LOOKUP
+
+   Finds the 3D node(s) for every part key sent by FastAPI.
+   1. exact names from PART_MAP
+   2. if none exist, name patterns from PART_PATTERNS
+   Any node that covers almost the whole model (a parent
+   group / the scene root) is rejected - colouring it would
+   paint the entire conveyor, which is the bug we are fixing.
 ========================================================= */
 
-function createGrooveTexture() {
+const PART_PATTERNS = {
+    belt:             /belt/i,
+    drive_pulley:     /roller_0|roller_head|motor|shaft_head|drive|cyl_roller$/i,
+    tail_pulley:      /roller_1|roller_tail|shaft_tail|tail_pulley|cyl_roller\.001/i,
+    thermal_sensor:   /temperature|thermal/i,
+    vibration_sensor: /vibration|mpu|gyro|accel/i,
+    flame_sensor:     /flame/i,
+    load_cell:        /load/i
+};
 
-    const canvas =
-        document.createElement(
-            "canvas"
-        );
+const MAX_PART_SHARE = 0.85;   // a part may not own more than 85% of all meshes
 
-
-    canvas.width = 512;
-    canvas.height = 128;
-
-
-    const ctx =
-        canvas.getContext(
-            "2d"
-        );
-
-
-    /* dark rubber base */
-
-    ctx.fillStyle =
-        "#15181b";
-
-    ctx.fillRect(
-        0,
-        0,
-        canvas.width,
-        canvas.height
-    );
-
-
-    /*
-       Grooves go across conveyor width.
-       Texture moves along X.
-    */
-
-    for (
-        let x = 0;
-        x < canvas.width;
-        x += 24
-    ) {
-
-        /* recessed groove */
-
-        ctx.fillStyle =
-            "#050607";
-
-        ctx.fillRect(
-            x,
-            0,
-            8,
-            canvas.height
-        );
-
-
-        /* slight raised highlight */
-
-        ctx.fillStyle =
-            "#343a40";
-
-        ctx.fillRect(
-            x + 8,
-            0,
-            5,
-            canvas.height
-        );
-
-
-        /* rubber surface */
-
-        ctx.fillStyle =
-            "#1e2327";
-
-        ctx.fillRect(
-            x + 13,
-            0,
-            11,
-            canvas.height
-        );
-    }
-
-
-    const texture =
-        new THREE.CanvasTexture(
-            canvas
-        );
-
-
-    texture.wrapS =
-        THREE.RepeatWrapping;
-
-    texture.wrapT =
-        THREE.RepeatWrapping;
-
-
-    texture.repeat.set(
-        1,
-        1
-    );
-
-
-    texture.colorSpace =
-        THREE.SRGBColorSpace;
-
-
-    return texture;
+function countMeshes(object) {
+    let n = 0;
+    object.traverse(c => { if (c.isMesh) n++; });
+    return n;
 }
 
-
-/* =========================================================
-   CREATE PLANAR UVs FOR BELT
-
-   Blender procedural materials don't export cleanly to GLB.
-   This gives the belt predictable browser UVs.
-========================================================= */
-
-function generateBeltUVs(mesh) {
-
-    const geometry =
-        mesh.geometry;
-
-
-    if (!geometry)
-        return;
-
-
-    geometry.computeBoundingBox();
-
-
-    const box =
-        geometry.boundingBox;
-
-
-    if (!box)
-        return;
-
-
-    const size =
-        new THREE.Vector3();
-
-
-    box.getSize(
-        size
-    );
-
-
-    /*
-       Find two largest local geometry dimensions.
-
-       Largest = conveyor length
-       Second = belt width
-    */
-
-    const dimensions = [
-
-        {
-            axis: "x",
-            size: size.x
-        },
-
-        {
-            axis: "y",
-            size: size.y
-        },
-
-        {
-            axis: "z",
-            size: size.z
-        }
-
-    ];
-
-
-    dimensions.sort(
-        (a, b) =>
-            b.size - a.size
-    );
-
-
-    const longAxis =
-        dimensions[0].axis;
-
-    const widthAxis =
-        dimensions[1].axis;
-
-
-    const position =
-        geometry.attributes.position;
-
-
-    const uvArray =
-        new Float32Array(
-            position.count * 2
-        );
-
-
-    const vertex =
-        new THREE.Vector3();
-
-
-    function getAxisValue(
-        vector,
-        axis
-    ) {
-
-        if (axis === "x")
-            return vector.x;
-
-        if (axis === "y")
-            return vector.y;
-
-        return vector.z;
+function isInside(parent, child) {
+    for (let p = child.parent; p; p = p.parent) {
+        if (p === parent) return true;
     }
-
-
-    const minLong =
-        getAxisValue(
-            box.min,
-            longAxis
-        );
-
-    const maxLong =
-        getAxisValue(
-            box.max,
-            longAxis
-        );
-
-
-    const minWidth =
-        getAxisValue(
-            box.min,
-            widthAxis
-        );
-
-    const maxWidth =
-        getAxisValue(
-            box.max,
-            widthAxis
-        );
-
-
-    const longRange =
-        Math.max(
-            maxLong - minLong,
-            0.00001
-        );
-
-
-    const widthRange =
-        Math.max(
-            maxWidth - minWidth,
-            0.00001
-        );
-
-
-    for (
-        let i = 0;
-        i < position.count;
-        i++
-    ) {
-
-        vertex.fromBufferAttribute(
-            position,
-            i
-        );
-
-
-        const u =
-            (
-                getAxisValue(
-                    vertex,
-                    longAxis
-                )
-                -
-                minLong
-            )
-            /
-            longRange;
-
-
-        const v =
-            (
-                getAxisValue(
-                    vertex,
-                    widthAxis
-                )
-                -
-                minWidth
-            )
-            /
-            widthRange;
-
-
-        uvArray[
-            i * 2
-        ] =
-            u;
-
-
-        uvArray[
-            i * 2 + 1
-        ] =
-            v;
-    }
-
-
-    geometry.setAttribute(
-
-        "uv",
-
-        new THREE.BufferAttribute(
-            uvArray,
-            2
-        )
-
-    );
+    return false;
 }
 
+function resolveParts() {
 
-/* =========================================================
-   APPLY BELT MATERIAL
-========================================================= */
+    const allNodes = [];
+    conveyor.traverse(o => allNodes.push(o));
 
-function setupBelt() {
-
-    if (!belt) {
-
-        console.warn(
-            "Belt object not found."
-        );
-
-        return;
-    }
-
-
-    beltTexture =
-        createGrooveTexture();
-
-
-    belt.traverse(
-        child => {
-
-            if (!child.isMesh)
-                return;
-
-
-            generateBeltUVs(
-                child
-            );
-
-
-            const material =
-                new THREE.MeshStandardMaterial({
-
-                    map:
-                        beltTexture,
-
-                    roughness:
-                        0.88,
-
-                    metalness:
-                        0.02,
-
-                    color:
-                        0xffffff
-
-                });
-
-
-            child.material =
-                material;
-        }
-    );
-
-
-    /*
-       Lots of narrow transverse grooves.
-    */
-
-    beltTexture.repeat.set(
-        16,
-        1
-    );
-
-
-    beltTexture.needsUpdate =
-        true;
-
+    const totalMeshes = Math.max(countMeshes(conveyor), 1);
 
     console.log(
-        "Belt grooves applied."
+        "[twin] nodes in GLB:",
+        allNodes.map(o => o.name).filter(Boolean).join(", ")
     );
-}
 
+    Object.entries(PART_MAP).forEach(([key, names]) => {
 
-/* =========================================================
-   SENSOR MATERIAL
-========================================================= */
+        let found = names.map(findObject).filter(Boolean);
 
-function setSensorState(
-    object,
-    state
-) {
-
-    if (!object)
-        return;
-
-
-    const color =
-        STATE_COLORS[state] ||
-        STATE_COLORS.Normal;
-
-
-    object.traverse(
-        child => {
-
-            if (!child.isMesh)
-                return;
-
-
-            /*
-               Clone ONCE only.
-               Prevent memory/material duplication every poll.
-            */
-
-            if (
-                !child.userData.dtMaterial
-            ) {
-
-                child.material =
-                    child.material.clone();
-
-
-                child.userData.dtMaterial =
-                    true;
-            }
-
-
-            if (
-                child.material.color
-            ) {
-
-                child.material.color.copy(
-                    color
-                );
-            }
-
-
-            if (
-                child.material.emissive
-            ) {
-
-                child.material.emissive.copy(
-                    color
-                );
-
-
-                child.material.emissiveIntensity =
-                    0.28;
-            }
-
-
-            child.material.needsUpdate =
-                true;
+        if (found.length === 0) {
+            found = allNodes.filter(
+                o => o.name && PART_PATTERNS[key].test(o.name)
+            );
         }
-    );
+
+        // keep only top-most matches (children are painted with their parent)
+        found = found.filter(
+            o => !found.some(p => p !== o && isInside(p, o))
+        );
+
+        // reject empty nodes and nodes that are (almost) the whole model
+        found = found.filter(o => {
+
+            const meshes = countMeshes(o);
+
+            if (meshes === 0)
+                return false;
+
+            if (meshes / totalMeshes > MAX_PART_SHARE) {
+                console.warn(
+                    `[twin] "${o.name}" ignored for ${key}: ` +
+                    `it contains ${meshes}/${totalMeshes} meshes`
+                );
+                return false;
+            }
+
+            return true;
+        });
+
+        partObjects[key] = found;
+
+        if (found.length === 0) {
+            console.warn("[twin] no 3D node found for part:", key);
+        } else {
+            console.log(
+                `[twin] ${key} ->`,
+                found.map(o => `${o.name} (${countMeshes(o)} meshes)`)
+            );
+        }
+    });
 }
 
 
 /* =========================================================
-   SENSOR LOGIC
+   PART HIGHLIGHT
+
+   Normal   -> original model colours
+   Warning  -> yellow
+   Critical -> red
+
+   Every mesh gets its OWN copy of its material the first
+   time it is painted, so meshes that share one material in
+   the GLB never change colour together by accident.
 ========================================================= */
 
-function updateSensors(
-    data
-) {
+function setPartState(object, state) {
 
-    const temperature =
-        Number(
-            data.object_temperature ??
-            0
-        );
+    const faulty = state === "Warning" || state === "Critical";
+
+    object.traverse(child => {
+
+        if (!child.isMesh) return;
+
+        if (!child.userData.dtOrig) {
+
+            if (!faulty) return;          // nothing painted yet, nothing to undo
+
+            const originals = Array.isArray(child.material)
+                ? child.material
+                : [child.material];
+
+            child.userData.dtOrig = originals.map(m => ({
+                color: m.color ? m.color.clone() : null,
+                emissive: m.emissive ? m.emissive.clone() : null,
+                emissiveIntensity: m.emissiveIntensity
+            }));
+
+            const copies = originals.map(m => m.clone());
+
+            child.material = Array.isArray(child.material)
+                ? copies
+                : copies[0];
+        }
+
+        const materials = Array.isArray(child.material)
+            ? child.material
+            : [child.material];
+
+        materials.forEach((material, i) => {
+
+            const orig = child.userData.dtOrig[i];
+
+            if (faulty) {
+
+                const hex = state === "Warning" ? 0xffff00 : 0xff0000;
+
+                if (material.color)
+                    material.color.set(hex);
+
+                if (material.emissive) {
+                    material.emissive.set(hex);
+                    material.emissiveIntensity =
+                        state === "Warning" ? 0.35 : 0.5;
+                }
+
+            } else {
+
+                if (material.color && orig.color)
+                    material.color.copy(orig.color);
+
+                if (material.emissive && orig.emissive) {
+                    material.emissive.copy(orig.emissive);
+                    material.emissiveIntensity = orig.emissiveIntensity;
+                }
+            }
+        });
+    });
+}
 
 
-    const vibration =
-        Number(
-            data.vibration ??
-            0
-        );
+/* =========================================================
+   APPLY fault_parts FROM THE BACKEND
 
+   fault_parts = [{part, level, reason}, ...]
 
-    const alignment =
-        Math.abs(
-            Number(
-                data.alignment ??
-                0
-            )
-        );
+   Only the parts listed there change colour; every other
+   part goes back to its original colour. A part can go UP in
+   severity immediately, but only goes DOWN after it has
+   looked healthier for HOLD_MS - this stops flicker when a
+   reading hovers around a threshold.
+========================================================= */
 
+const HOLD_MS = 4000;      // a part must look healthy this long before its colour clears
 
-    const flame =
-        Number(
-            data.flame ??
-            1
-        );
+const shownState = {};     // part key -> { level, lowerSince }
 
+let latestFaults = [];     // newest fault_parts, kept so it can be applied after the GLB loads
 
-    /* thermal */
+let lastFaultLog = "";
 
-    let thermalState =
-        "Normal";
+function applyFaultParts(faults) {
 
+    latestFaults = Array.isArray(faults) ? faults : [];
 
-    if (
-        temperature >= 80
-    ) {
+    const sig = JSON.stringify(latestFaults.map(f => f.part + ":" + f.level));
 
-        thermalState =
-            "Critical";
+    if (sig !== lastFaultLog) {
+        lastFaultLog = sig;
+        console.log("[twin] fault_parts ->", sig);
     }
 
-    else if (
-        temperature >= 70
-    ) {
+    const wanted = {};
 
-        thermalState =
-            "Warning";
-    }
+    (Array.isArray(faults) ? faults : []).forEach(f => {
 
+        if (!f || !(f.level in LEVEL_RANK)) return;
 
-    /* vibration */
+        if (
+            wanted[f.part] === undefined ||
+            LEVEL_RANK[f.level] > LEVEL_RANK[wanted[f.part]]
+        ) {
+            wanted[f.part] = f.level;
+        }
+    });
 
-    let vibrationState =
-        "Normal";
+    const now = performance.now();
 
+    Object.keys(partObjects).forEach(key => {
 
-    if (
-        vibration >= 8
-    ) {
+        const want = wanted[key] || "Normal";
 
-        vibrationState =
-            "Critical";
-    }
+        const rec = shownState[key] ||
+            (shownState[key] = { level: "Normal", lowerSince: null });
 
-    else if (
-        vibration >= 5
-    ) {
+        let next = rec.level;
 
-        vibrationState =
-            "Warning";
-    }
+        if (LEVEL_RANK[want] >= LEVEL_RANK[rec.level]) {
 
+            next = want;
+            rec.lowerSince = null;
 
-    /* alignment */
+        } else {
 
-    let alignmentState =
-        "Normal";
+            if (rec.lowerSince === null)
+                rec.lowerSince = now;
 
+            if (now - rec.lowerSince >= HOLD_MS) {
+                next = want;
+                rec.lowerSince = null;
+            }
+        }
 
-    if (
-        alignment >= 1.0
-    ) {
-
-        alignmentState =
-            "Critical";
-    }
-
-    else if (
-        alignment >= 0.5
-    ) {
-
-        alignmentState =
-            "Warning";
-    }
-
-
-    /*
-       same physical vibration /
-       alignment sensor
-    */
-
-    const priority = {
-
-        Normal: 0,
-        Warning: 1,
-        Critical: 2
-
-    };
-
-
-    const combinedState =
-
-        priority[
-            alignmentState
-        ]
-
-        >
-
-        priority[
-            vibrationState
-        ]
-
-        ?
-
-        alignmentState
-
-        :
-
-        vibrationState;
-
-
-    /* flame */
-
-    const flameState =
-
-        flame === 0
-
-        ?
-
-        "Critical"
-
-        :
-
-        "Normal";
-
-
-    setSensorState(
-        thermalSensor,
-        thermalState
-    );
-
-
-    setSensorState(
-        vibrationSensor,
-        combinedState
-    );
-
-
-    setSensorState(
-        flameSensor,
-        flameState
-    );
-
-
-    setSensorState(
-        loadCell,
-        "Normal"
-    );
-
-
-    setSensorState(
-        loadCellDriver,
-        "Normal"
-    );
+        if (next !== rec.level) {
+            rec.level = next;
+            partObjects[key].forEach(o => setPartState(o, next));
+        } else if (rec.level !== "Normal") {
+            // idempotent: keeps the colour applied even if something reset it
+            partObjects[key].forEach(o => setPartState(o, rec.level));
+        }
+    });
 }
 
 
@@ -966,6 +545,7 @@ function updateSensors(
 
    Much closer than your current view.
 ========================================================= */
+
 
 function fitCameraToModel() {
 
@@ -1027,13 +607,13 @@ function fitCameraToModel() {
 
     camera.position.set(
 
-    -radius * 1.35,
+        radius * 0.55,
 
-    radius * 1.15,
+        radius * 1.55,
 
-    -radius * 1.65
+        radius * 1.35
 
-);
+    );
 
 
     camera.lookAt(
@@ -1115,122 +695,14 @@ loader.load(
 
 
         /* -----------------------------------------
-           Find important parts
+           Find important parts (see PART_MAP)
         ----------------------------------------- */
 
-        belt =
-            findObject(
-                "Belt"
-            );
-
-
-        drivePulley =
-            findObject(
-                "Drive_Pulley"
-            );
-
-
-        tailPulley =
-            findObject(
-                "Tail_Pulley"
-            );
-
-
-        thermalSensor =
-            findObject(
-                "Sensor_Thermal"
-            );
-
-
-        vibrationSensor =
-            findObject(
-                "Sensor_Vibration"
-            );
-
-
-        flameSensor =
-            findObject(
-                "Sensor_Flame"
-            );
-
-
-        loadCell =
-            findObject(
-                "Sensor_LoadCell"
-            );
-
-
-        loadCellDriver =
-            findObject(
-                "Load_Cell_Driver"
-            );
+        resolveParts();
 
 
         /* -----------------------------------------
-           Debug exported names
-        ----------------------------------------- */
-
-        console.log(
-            "===== CONVEYOR OBJECTS ====="
-        );
-
-
-        conveyor.traverse(
-            object => {
-
-                if (
-                    object.name
-                ) {
-
-                    console.log(
-                        object.name
-                    );
-                }
-
-            }
-        );
-
-
-        console.log(
-            "Belt:",
-            belt
-        );
-
-        console.log(
-            "Drive pulley:",
-            drivePulley
-        );
-
-        console.log(
-            "Tail pulley:",
-            tailPulley
-        );
-
-        console.log(
-            "Thermal:",
-            thermalSensor
-        );
-
-        console.log(
-            "Vibration:",
-            vibrationSensor
-        );
-
-        console.log(
-            "Flame:",
-            flameSensor
-        );
-
-
-        /* -----------------------------------------
-           Belt grooves
-        ----------------------------------------- */
-
-        setupBelt();
-
-
-        /* -----------------------------------------
-           Blender pulley animation
+           Built-in GLB animation (ConveyorRun)
         ----------------------------------------- */
 
         if (
@@ -1283,6 +755,9 @@ loader.load(
         fitCameraToModel();
 
 
+        applyFaultParts(latestFaults);
+
+
         document.getElementById(
             "status"
         ).textContent =
@@ -1320,145 +795,168 @@ loader.load(
 
 
 /* =========================================================
-   READ FASTAPI
+   APPLY ONE STATE PACKET
+
+   Called for every WebSocket message (and by the
+   HTTP fallback). Same JSON shape as GET /health.
 ========================================================= */
 
-async function updateDigitalTwin() {
+const statusEl =
+    document.getElementById("status");
+
+function applyState(data) {
+
+    /* camera_update (and any other typed message) is not a sensor state */
+
+    if (data && data.type)
+        return;
+
+    /* FastAPI sends an empty state before the first reading */
+
+    if (!data || !data.timestamp) {
+
+        statusEl.textContent =
+            "WAITING FOR SENSOR DATA";
+
+        statusEl.style.color = "#4b7bff";
+
+        return;
+    }
+
+
+    /* 3D parts */
+
+    applyFaultParts(data.fault_parts);
+
+
+    /* motor speed -> belt / roller animation (PWM 0-255) */
+
+    conveyorSpeed =
+        Number(data.speed ?? 0);
+
+    conveyorRunning =
+        conveyorSpeed > 0;
+
+
+    /* status label */
+
+    const severity =
+        data.severity || "Normal";
+
+    const faultNames =
+        (data.fault_parts || [])
+            .map(f => f.part.replaceAll("_", " "))
+            .join(", ");
+
+    statusEl.textContent =
+
+        `STATUS: ${severity.toUpperCase()} · PWM: ${Math.round(conveyorSpeed)}/255` +
+        (faultNames ? ` · FAULT: ${faultNames}` : "");
+
+    statusEl.style.color =
+
+        severity === "Critical"
+            ? "#ff3636"
+            : severity === "Warning"
+                ? "#ff8c1a"
+                : "#4b7bff";
+}
+
+
+/* =========================================================
+   LIVE FEED  (WebSocket  ws://.../ws)
+========================================================= */
+
+let socket = null;
+
+let wsOpen = false;
+
+
+function connectSocket() {
+
+    socket = new WebSocket(WS_URL);
+
+    socket.onopen = () => {
+
+        wsOpen = true;
+
+        console.log("Twin WebSocket connected");
+    };
+
+    socket.onmessage = event => {
+
+        try {
+
+            applyState(
+                JSON.parse(event.data)
+            );
+        }
+
+        catch (error) {
+
+            console.error(
+                "Bad WebSocket packet:",
+                error
+            );
+        }
+    };
+
+    socket.onclose = () => {
+
+        wsOpen = false;
+
+        setTimeout(connectSocket, 1000);
+    };
+
+    socket.onerror = () => {
+
+        socket.close();
+    };
+}
+
+
+connectSocket();
+
+
+/* =========================================================
+   FALLBACK: poll GET /health only while WebSocket is down
+========================================================= */
+
+async function pollHealth() {
+
+    if (wsOpen)
+        return;
 
     try {
 
         const response =
             await fetch(
-
                 API_URL,
-
-                {
-                    cache:
-                        "no-store"
-                }
+                { cache: "no-store" }
             );
 
+        if (!response.ok)
+            throw new Error("HTTP " + response.status);
 
-        if (
-            !response.ok
-        ) {
-
-            throw new Error(
-                "HTTP " +
-                response.status
-            );
-        }
-
-
-        const data =
-            await response.json();
-
-
-        /* sensors */
-
-        updateSensors(
-            data
+        applyState(
+            await response.json()
         );
-
-
-        /* speed */
-
-        conveyorSpeed =
-            Number(
-                data.speed ??
-                0
-            );
-
-
-        conveyorRunning =
-            conveyorSpeed > 0;
-
-
-        /* status */
-
-        const severity =
-            data.severity ||
-            "Normal";
-
-
-        const status =
-            document.getElementById(
-                "status"
-            );
-
-
-        status.textContent =
-
-            `STATUS: ${severity.toUpperCase()} · SPEED: ${conveyorSpeed}%`;
-
-
-        if (
-            severity ===
-            "Critical"
-        ) {
-
-            status.style.color =
-                "#ff3636";
-        }
-
-        else if (
-            severity ===
-            "Warning"
-        ) {
-
-            status.style.color =
-                "#ff8c1a";
-        }
-
-        else {
-
-            status.style.color =
-                "#4b7bff";
-        }
-
     }
 
-    catch (
-        error
-    ) {
+    catch (error) {
 
-        console.error(
-            "FastAPI error:",
-            error
-        );
+        conveyorRunning = false;
 
-
-        conveyorRunning =
-            false;
-
-
-        const status =
-            document.getElementById(
-                "status"
-            );
-
-
-        status.textContent =
+        statusEl.textContent =
             "BACKEND OFFLINE";
 
-
-        status.style.color =
+        statusEl.style.color =
             "#ff3636";
     }
 }
 
 
-/* =========================================================
-   BACKEND POLLING
-========================================================= */
-
-updateDigitalTwin();
-
-
-setInterval(
-    updateDigitalTwin,
-    3000
-);
+setInterval(pollHealth, 3000);
 
 
 /* =========================================================
@@ -1503,31 +1001,12 @@ function animate(
             0
         )
         /
-        100;
+        255;
 
 
     if (
         conveyorRunning
     ) {
-
-
-        /* =========================================
-           MOVING BELT GROOVES
-        ========================================= */
-
-        if (
-            beltTexture
-        ) {
-
-            beltTexture.offset.x +=
-
-                delta *
-                1.6 *
-                Math.max(
-                    speedFactor,
-                    0.15
-                );
-        }
 
 
         /* =========================================
@@ -1548,62 +1027,6 @@ function animate(
                 )
 
             );
-        }
-
-
-        /* =========================================
-           FALLBACK PULLEY ROTATION
-           only if GLB animation isn't available
-        ========================================= */
-
-        else {
-
-
-            if (
-                drivePulley
-            ) {
-
-                drivePulley.rotateOnAxis(
-
-                    new THREE.Vector3(
-                        0,
-                        1,
-                        0
-                    ),
-
-                    delta *
-                    7 *
-                    Math.max(
-                        speedFactor,
-                        0.15
-                    )
-
-                );
-            }
-
-
-            if (
-                tailPulley
-            ) {
-
-                tailPulley.rotateOnAxis(
-
-                    new THREE.Vector3(
-                        0,
-                        1,
-                        0
-                    ),
-
-                    delta *
-                    7 *
-                    Math.max(
-                        speedFactor,
-                        0.15
-                    )
-
-                );
-            }
-
         }
 
     }
