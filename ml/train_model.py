@@ -156,3 +156,6 @@ print(MODEL_PATH)
 
 print("\nClasses learned:")
 print(model.classes_)
+
+print("MODEL CLASSES:", model.classes_)
+print("DATASET CLASSES:", df["fault"].unique())

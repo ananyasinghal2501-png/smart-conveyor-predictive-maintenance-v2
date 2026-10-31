@@ -1,0 +1,2603 @@
+<!DOCTYPE html>
+
+<html lang="en" data-template="command">
+
+<head>
+
+<meta charset="UTF-8">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0"
+
+<title>Smart Conveyor Predictive Maintenance</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+
+
+
+<style>
+
+  :root{
+
+    --radius-sm:6px;
+
+    --radius-md:10px;
+
+    --font-display:'Space Grotesk',sans-serif;
+
+    --font-mono:'JetBrains Mono',monospace;
+
+  }
+
+
+
+  html[data-template="command"]{
+
+    --bg:#14171A; --panel:#1B1F24; --panel-2:#21262C; --border:#2C3238;
+
+    --text:#E8EAED; --text-dim:#8B939B; --text-faint:#565D64;
+
+    --accent:#FF8C1A; --accent-2:#35B0C7; --good:#3FB950; --warn:#F2B705;
+
+    --bad:#E5484D; --gauge-track:#2A2F35;
+
+  }
+
+
+
+  html[data-template="daylight"]{
+
+    --bg:#F1F3F4; --panel:#FFFFFF; --panel-2:#F7F8F9; --border:#D8DCDF;
+
+    --text:#1B1F24; --text-dim:#5B6570; --text-faint:#96A0A9;
+
+    --accent:#C25A00; --accent-2:#0E7C90; --good:#1E8E3E; --warn:#B7791F;
+
+    --bad:#C0362C; --gauge-track:#E4E7E9;
+
+  }
+
+
+
+  html[data-template="field"]{
+
+    --bg:#101314; --panel:#191D1F; --panel-2:#1F2426; --border:#2B3133;
+
+    --text:#ECEFEF; --text-dim:#909A9C; --text-faint:#5C6668;
+
+    --accent:#FFB300; --accent-2:#4CC2C7; --good:#4CAF62; --warn:#E0A82E;
+
+    --bad:#E15B4F; --gauge-track:#262C2E;
+
+  }
+
+
+
+  *{box-sizing:border-box;margin:0;padding:0}
+
+  body{background:var(--bg);color:var(--text);font-family:var(--font-display);-webkit-font-smoothing:antialiased;padding-bottom:60px}
+
+
+
+  .switcher{position:sticky;top:0;z-index:50;display:flex;background:#0B0D0E;border-bottom:1px solid #23282B;padding:0 20px;overflow-x:auto}
+
+  .switcher button{font-family:var(--font-mono);font-size:12px;color:#7A8288;background:none;border:none;border-bottom:2px solid transparent;padding:14px 16px;cursor:pointer;white-space:nowrap}
+
+  .switcher button:hover{color:#C7CDD1}
+
+  .switcher button.active{color:#FF8C1A;border-bottom-color:#FF8C1A}
+
+
+
+  .page{display:none;max-width:1420px;margin:0 auto;padding:28px 24px 0}
+
+  .page.active{display:block}
+
+
+
+  .dash-header{display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:12px;margin-bottom:22px;padding-bottom:16px;border-bottom:1px solid var(--border)}
+
+  .title-block h1{font-size:22px;font-weight:600}
+
+  .title-block .sub{font-family:var(--font-mono);font-size:12px;color:var(--text-dim);margin-top:4px}
+
+  .status-wrap{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+
+  .status-pill{display:inline-flex;align-items:center;gap:6px;font-family:var(--font-mono);font-size:11px;padding:6px 10px;border-radius:20px;background:var(--panel-2);border:1px solid var(--border);color:var(--text-dim)}
+
+  .status-pill .dot{width:6px;height:6px;border-radius:50%;background:var(--good)}
+
+  .status-pill .dot.live{animation:pulse 2s infinite}
+
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+
+  .severity-pill{font-weight:600}
+
+  .severity-pill.normal{background:rgba(63,185,80,.12);border-color:rgba(63,185,80,.4);color:var(--good)}
+
+  .severity-pill.warning{background:rgba(242,183,5,.12);border-color:rgba(242,183,5,.4);color:var(--warn)}
+
+  .severity-pill.critical{background:rgba(229,72,77,.16);border-color:rgba(229,72,77,.55);color:var(--bad)}
+
+  .severity-pill.normal .dot{background:var(--good)}
+
+  .severity-pill.warning .dot{background:var(--warn)}
+
+  .severity-pill.critical .dot{background:var(--bad);animation:pulse 1s infinite}
+
+  .connection-pill.offline{color:var(--bad);border-color:rgba(229,72,77,.45)}
+
+  .connection-pill.offline .dot{background:var(--bad)}
+
+
+
+  .alert-banner{display:none;align-items:center;gap:16px;background:linear-gradient(90deg,rgba(229,72,77,.22),rgba(229,72,77,.08));border:1px solid rgba(229,72,77,.5);border-radius:var(--radius-md);padding:14px 18px;margin-bottom:18px}
+
+  .banner-icon{width:34px;height:34px;border-radius:50%;flex-shrink:0;background:var(--bad);color:#fff;display:flex;align-items:center;justify-content:center;font-family:var(--font-mono);font-size:18px;font-weight:700}
+
+  .banner-body{flex:1;min-width:0}
+
+  .banner-title{font-family:var(--font-mono);font-size:12.5px;font-weight:700;letter-spacing:.04em;color:var(--bad);margin-bottom:6px}
+
+  .banner-chips{display:flex;gap:8px;flex-wrap:wrap}
+
+  .banner-chip{font-family:var(--font-mono);font-size:11px;color:#F5C6C7;background:rgba(0,0,0,.25);border:1px solid rgba(229,72,77,.35);padding:4px 9px;border-radius:6px}
+
+  .banner-ack{font-family:var(--font-mono);font-size:11px;font-weight:600;background:var(--bad);color:#fff;border:none;border-radius:6px;padding:9px 16px;cursor:pointer}
+
+
+
+  .top-row{display:grid;grid-template-columns:220px 1fr;gap:12px;margin-bottom:16px}
+
+  .card{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius-md);padding:18px}
+
+  .card h2{font-size:12px;font-family:var(--font-mono);letter-spacing:.03em;color:var(--text-dim);font-weight:500;margin-bottom:14px}
+
+
+
+  .health-card{display:flex;flex-direction:column;align-items:center;text-align:center}
+
+  .gauge-wrap{position:relative;width:145px;height:145px;margin:4px 0 8px}
+
+  .gauge-wrap svg{width:100%;height:100%;transform:rotate(-90deg)}
+
+  .gauge-track{fill:none;stroke:var(--gauge-track);stroke-width:12}
+
+  .gauge-fill{fill:none;stroke:var(--good);stroke-width:12;stroke-linecap:round;transition:stroke-dashoffset 1s ease,stroke 1s ease}
+
+  .gauge-center{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
+
+  .gauge-center .num{font-family:var(--font-mono);font-size:34px;font-weight:700;line-height:1;color:var(--good)}
+
+  .gauge-center .lbl{font-size:11px;color:var(--text-dim);letter-spacing:.06em;margin-top:4px}
+
+  .health-description{font-size:10px;line-height:1.4;color:var(--text-dim);max-width:180px}
+
+  .prediction-mini{margin-top:12px;width:100%;padding-top:10px;border-top:1px solid var(--border)}
+
+  .prediction-mini .pred{font-family:var(--font-mono);font-size:12px;font-weight:700}
+
+  .prediction-mini .conf{font-family:var(--font-mono);font-size:10px;color:var(--text-faint);margin-top:4px}
+
+
+
+  .sensor-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+
+  .sensor-tile{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius-md);padding:14px 15px;position:relative;overflow:hidden;transition:border-color .3s,background-color .3s}
+
+  .sensor-tile::after{content:"";position:absolute;left:0;right:0;bottom:0;height:2px;opacity:.85;background:var(--accent-2)}
+
+  .sensor-tile.object-temp::after{background:#B66CFF}
+
+  .sensor-tile.ambient-temp::after{background:#7D8CFF}
+
+  .sensor-tile.vibration::after{background:#35B9FF}
+
+  .sensor-tile.alignment::after{background:#A970FF}
+
+  .sensor-tile.load::after{background:#FFC247}
+
+  .sensor-tile.speed::after{background:#45E58A}
+
+  .sensor-tile.flame::after{background:#FF6B4A}
+
+  .sensor-tile.crit{border-color:var(--bad);background:linear-gradient(180deg,rgba(229,72,77,.10),rgba(229,72,77,.02))}
+
+  .sensor-tile.warn-flag{border-color:var(--warn);background:linear-gradient(180deg,rgba(242,183,5,.10),rgba(242,183,5,.02))}
+
+  .sensor-tile.sensor-check{border-color:var(--warn)}
+
+  .sensor-tile .top{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px}
+
+  .sensor-tile .name{display:flex;align-items:center;gap:9px;font-size:11px;color:#AEB7C2;font-family:var(--font-mono);letter-spacing:.02em}
+
+  .sensor-tile .icon{width:32px;height:32px;display:flex;align-items:center;justify-content:center;border-radius:8px;font-size:17px;flex-shrink:0;background:rgba(255,255,255,.05)}
+
+  .sensor-tile .val{font-family:var(--font-mono);font-size:24px;font-weight:600}
+
+  .sensor-tile .val span{font-size:13px;color:var(--text-dim);font-weight:400;margin-left:3px}
+
+  .sensor-tile .delta{font-family:var(--font-mono);font-size:10.5px;margin-top:6px;color:var(--text-faint)}
+
+  .tile-badge{font-family:var(--font-mono);font-size:9.5px;padding:2px 7px;border-radius:9px;flex-shrink:0;margin-left:8px}
+
+  .tile-badge.critical{background:rgba(229,72,77,.18);color:var(--bad)}
+
+  .tile-badge.warning{background:rgba(242,183,5,.18);color:var(--warn)}
+
+  .tile-badge.safe{background:rgba(63,185,80,.15);color:var(--good)}
+
+
+
+  .twin-section{margin-bottom:16px}
+
+  .head-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+
+  .twin-viewer-wrap{
+
+    width:100%;
+
+    height:420px;
+
+    border:1px solid var(--border);
+
+    border-radius:var(--radius-md);
+
+    overflow:hidden;
+
+    background:#14171A;
+
+    position:relative;
+
+  }
+
+  .twin-viewer-frame{
+
+    width:100%;
+
+    height:100%;
+
+    border:0;
+
+    display:block;
+
+    background:#14171A;
+
+  }
+
+  .twin-viewer-note{
+
+    font-family:var(--font-mono);
+
+    font-size:9.5px;
+
+    color:var(--text-faint);
+
+    margin-top:8px;
+
+  }
+
+  .twin-legend{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+
+  .legend-chip{font-family:var(--font-mono);font-size:10.5px;padding:5px 8px;border:1px solid var(--border);border-radius:12px;color:var(--text-dim)}
+
+  .legend-chip.ok{color:var(--good)}
+
+  .legend-chip.watch{color:var(--warn)}
+
+  .legend-chip.fault{color:var(--bad)}
+
+  .twin-fault-marker{display:none}
+
+
+
+  .why-status-card{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius-md);padding:22px;margin-bottom:16px}
+
+  .why-status-header{display:flex;align-items:flex-start;gap:14px;margin-bottom:18px}
+
+  .why-status-icon{width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:var(--accent-2);border:2px solid var(--accent-2);font-family:var(--font-mono);font-size:18px;flex-shrink:0}
+
+  .why-status-title{font-family:var(--font-mono);font-size:16px;font-weight:600;letter-spacing:.03em}
+
+  .why-status-subtitle{font-size:12px;color:var(--text-dim);margin-top:5px}
+
+  .why-status-list{border:1px solid var(--border);border-radius:var(--radius-md);overflow:hidden}
+
+  .why-item{display:flex;align-items:center;gap:16px;padding:13px 16px;border-bottom:1px solid var(--border)}
+
+  .why-item:last-child{border-bottom:none}
+
+  .why-item-icon{width:42px;height:42px;border-radius:50%;background:rgba(53,176,199,.10);display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0}
+
+  .why-item-title{font-size:13px;font-weight:600;color:var(--text)}
+
+  .why-item-description{font-size:11.5px;color:var(--text-dim);margin-top:5px}
+
+  .why-empty{padding:20px;text-align:center;font-family:var(--font-mono);font-size:12px;color:var(--good)}
+
+
+
+  .analysis-grid{display:grid;grid-template-columns:1fr 1fr 330px;gap:16px}
+
+  .chart-card .chart-top{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:2px}
+
+  .chart-card .chart-val{font-family:var(--font-mono);font-size:20px;font-weight:600}
+
+  .chart-card .chart-meta{font-family:var(--font-mono);font-size:10.5px;color:var(--text-faint)}
+
+  .chart-card svg{width:100%;height:90px;margin-top:10px}
+
+  .predictions-card .prediction-name{font-size:20px;font-weight:700;margin-top:6px}
+
+  .predictions-card .prediction-confidence{font-family:var(--font-mono);font-size:12px;color:var(--text-dim);margin-top:8px}
+
+  .predictions-card .prediction-note{font-size:11px;color:var(--text-faint);margin-top:12px;line-height:1.5}
+
+  .alerts-card{grid-column:1/-1}
+
+  .alert-row{display:grid;grid-template-columns:180px 110px 1fr;gap:12px;align-items:center;padding:9px 0;border-bottom:1px solid var(--border);font-size:12.5px}
+
+  .alert-row:last-child{border-bottom:none}
+
+  .alert-row .t{font-family:var(--font-mono);color:var(--text-faint);font-size:10.5px}
+
+  .sev{font-family:var(--font-mono);font-size:10.5px;padding:2px 8px;border-radius:10px;width:fit-content}
+
+  .sev.critical{background:rgba(229,72,77,.15);color:var(--bad)}
+
+  .sev.warning{background:rgba(242,183,5,.15);color:var(--warn)}
+
+  .sev.normal{background:rgba(63,185,80,.12);color:var(--good)}
+
+  .empty-row{font-family:var(--font-mono);font-size:11px;color:var(--text-faint);padding:8px 0}
+
+
+
+  html[data-template="field"] .page{max-width:440px;padding:20px 14px 0}
+
+  html[data-template="field"] .top-row{grid-template-columns:1fr}
+
+  html[data-template="field"] .sensor-grid{grid-template-columns:repeat(2,1fr)}
+
+  html[data-template="field"] .analysis-grid{grid-template-columns:1fr}
+
+  html[data-template="field"] .alerts-card{grid-column:1}
+
+
+
+  @media(max-width:1100px){.sensor-grid{grid-template-columns:repeat(3,1fr)}.analysis-grid{grid-template-columns:1fr 1fr}.predictions-card{grid-column:1/-1}}
+
+  @media(max-width:820px){.top-row{grid-template-columns:1fr}.sensor-grid{grid-template-columns:repeat(2,1fr)}.analysis-grid{grid-template-columns:1fr}.alerts-card,.predictions-card{grid-column:1}.alert-row{grid-template-columns:1fr}}
+
+  @media(max-width:520px){.sensor-grid{grid-template-columns:1fr}.page{padding:18px 12px 0}}
+
+
+
+
+
+  /* ===== ZOOMABLE LIVE SENSOR GRAPHS ===== */
+
+  .sensor-graphs-section{margin-top:16px}
+
+  .section-heading-row{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;margin-bottom:12px;flex-wrap:wrap}
+
+  .section-heading-row h2{font-family:var(--font-mono);font-size:12px;letter-spacing:.04em;color:var(--text-dim);font-weight:600;margin:0}
+
+  .section-heading-row .hint{font-family:var(--font-mono);font-size:10px;color:var(--text-faint)}
+
+  .sensor-charts-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+
+  .sensor-chart-card{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius-md);padding:14px;min-width:0}
+
+  .sensor-chart-head{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:4px}
+
+  .sensor-chart-title{font-family:var(--font-mono);font-size:11px;font-weight:600;color:var(--text)}
+
+  .sensor-chart-unit{font-family:var(--font-mono);font-size:9.5px;color:var(--text-faint)}
+
+  .sensor-chart{width:100%;height:260px}
+
+  .chart-help{font-family:var(--font-mono);font-size:9.5px;color:var(--text-faint);margin-top:2px;text-align:right}
+
+  html[data-template="field"] .sensor-charts-grid{grid-template-columns:1fr}
+
+  html[data-template="field"] .sensor-chart{height:230px}
+
+  @media(max-width:820px){.sensor-charts-grid{grid-template-columns:1fr}}
+
+
+
+
+  /* ===== UNSUPERVISED ANOMALY / TEMPORAL MONITORING ===== */
+  .anomaly-card{margin-bottom:16px}
+  .anomaly-header{display:flex;justify-content:space-between;align-items:flex-start;gap:14px;flex-wrap:wrap;margin-bottom:16px}
+  .anomaly-header h2{font-size:12px;font-family:var(--font-mono);letter-spacing:.03em;color:var(--text-dim);font-weight:600;margin-bottom:6px}
+  .anomaly-subtitle{font-size:11.5px;color:var(--text-dim);line-height:1.5}
+  .anomaly-badge{font-family:var(--font-mono);font-size:10px;font-weight:700;letter-spacing:.03em;padding:6px 10px;border-radius:14px;border:1px solid var(--border);white-space:nowrap}
+  .anomaly-badge.normal{color:var(--good);background:rgba(63,185,80,.12);border-color:rgba(63,185,80,.4)}
+  .anomaly-badge.warning{color:var(--warn);background:rgba(242,183,5,.12);border-color:rgba(242,183,5,.45)}
+  .anomaly-badge.critical{color:var(--bad);background:rgba(229,72,77,.12);border-color:rgba(229,72,77,.45)}
+  .anomaly-badge.warming{color:var(--text-dim);background:var(--panel-2)}
+  .anomaly-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+  .anomaly-metric{background:var(--panel-2);border:1px solid var(--border);border-radius:8px;padding:13px;min-width:0}
+  .anomaly-label{font-family:var(--font-mono);font-size:9.5px;color:var(--text-faint);letter-spacing:.04em;margin-bottom:8px}
+  .anomaly-value{font-family:var(--font-mono);font-size:15px;font-weight:600;color:var(--text);overflow-wrap:anywhere}
+  .anomaly-detail{font-size:10.5px;color:var(--text-dim);margin-top:6px;line-height:1.45}
+  .anomaly-message{font-size:11.5px;line-height:1.5;color:var(--text-dim);margin-top:13px;padding:10px 12px;border-left:3px solid var(--accent-2);background:rgba(53,176,199,.06);border-radius:0 6px 6px 0}
+  .anomaly-card.is-anomaly{border-color:var(--warn)}
+  .anomaly-card.has-shift .anomaly-message{border-left-color:var(--warn);background:rgba(242,183,5,.07)}
+  html[data-template="field"] .anomaly-grid{grid-template-columns:1fr}
+  @media(max-width:520px){.anomaly-grid{grid-template-columns:1fr}}
+
+
+/* CAMERA VISION PANEL */
+.camera-card { margin: 16px 0; }
+.camera-card.is-camera-alert { border-color: var(--bad); box-shadow: 0 0 0 1px rgba(229,72,77,.18); }
+.camera-layout { display: grid; grid-template-columns: minmax(0, 1.45fr) minmax(240px, 1fr); gap: 16px; align-items: start; }
+.camera-stream-wrap { min-height: 220px; border: 1px solid var(--border); border-radius: 10px; overflow: hidden; background: #090b0d; display: flex; align-items: center; justify-content: center; }
+.camera-stream { display: block; width: 100%; max-height: 360px; object-fit: contain; }
+.camera-stream-placeholder { color: var(--text-dim); padding: 18px; font-family: var(--font-mono); font-size: 11px; text-align: center; }
+.camera-metrics { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 10px; }
+.camera-metric { min-width: 0; padding: 13px; border: 1px solid var(--border); border-radius: 8px; background: var(--panel-2); }
+.camera-metric-label { color: var(--text-faint); font: 10px var(--font-mono); letter-spacing: .04em; margin-bottom: 8px; }
+.camera-metric-value { color: var(--text); font: 600 15px var(--font-mono); overflow-wrap: anywhere; }
+.camera-status-line { margin-top: 12px; padding: 11px 12px; border-left: 3px solid var(--accent-2); background: rgba(53,176,199,.07); border-radius: 0 6px 6px 0; font-size: 11.5px; line-height: 1.5; color: var(--text-dim); }
+.camera-card.is-camera-alert .camera-status-line { border-left-color: var(--bad); background: rgba(229,72,77,.09); color: var(--text); }
+@media(max-width:820px){.camera-layout{grid-template-columns:1fr}.camera-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:520px){.camera-metrics{grid-template-columns:1fr}}
+
+/* DIGITAL BLACK BOX */
+.black-box-card {
+  position: relative;
+  box-sizing: border-box;
+  padding: 26px !important;
+  margin-top: 18px;
+  overflow: hidden;
+  border: 1px solid #344457 !important;
+  border-radius: 16px !important;
+  background: linear-gradient(140deg, #1c2530, #141a22) !important;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.22) !important;
+}
+
+.black-box-card .section-heading-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.black-box-card h2 {
+  color: #e6f1ff !important;
+  font-size: 16px !important;
+  letter-spacing: 1.4px;
+}
+
+.black-box-card .hint {
+  color: #8296ac !important;
+  font-size: 12px;
+}
+
+.black-box-card .black-box-controls {
+  display: flex;
+  align-items: end;
+  flex-wrap: wrap;
+  gap: 18px;
+  margin: 0 0 22px;
+  padding: 18px;
+  border: 1px solid #303c4b;
+  border-radius: 12px;
+  background: rgba(11, 16, 23, 0.42);
+}
+
+.black-box-card label {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  color: #9eafc3;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+#blackbox-start,
+#blackbox-end {
+  box-sizing: border-box;
+  min-height: 44px;
+  max-width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #3a5068;
+  border-radius: 8px;
+  background: #111a24;
+  color: #e7f2ff;
+  color-scheme: dark;
+  font: inherit;
+}
+
+#blackbox-load {
+  min-height: 44px;
+  padding: 0 20px;
+  border: 1px solid #4ba7ff;
+  border-radius: 8px;
+  background: linear-gradient(135deg, #258be8, #1764ad);
+  color: #fff;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+#blackbox-load:hover {
+  filter: brightness(1.15);
+}
+
+#blackbox-load:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+#blackbox-message {
+  margin: 4px 0 16px;
+  padding: 12px 14px;
+  border: 1px solid #2e4052;
+  border-radius: 8px;
+  background: #19232e;
+  color: #a9c2dc;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+#blackbox-results {
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.blackbox-table-wrap {
+  max-width: 100%;
+  overflow-x: auto;
+  border: 1px solid #344457;
+  border-radius: 10px;
+}
+
+.blackbox-table {
+  width: 100%;
+  min-width: 720px;
+  border-collapse: collapse;
+  text-align: left;
+  font-size: 12px;
+}
+
+.blackbox-table th {
+  padding: 15px 18px;
+  border-bottom: 1px solid #39485a;
+  background: #253447;
+  color: #91cbff;
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.blackbox-table td {
+  padding: 15px 18px;
+  border-top: 1px solid #2e4052;
+  color: #dce7f3;
+  white-space: nowrap;
+}
+
+.blackbox-table tbody tr:hover {
+  background: #202d3b;
+}
+
+@media (max-width: 700px) {
+  .black-box-card {
+    padding: 18px !important;
+  }
+
+  .black-box-card .section-heading-row {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .black-box-card .black-box-controls {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  #blackbox-start,
+  #blackbox-end,
+  #blackbox-load {
+    width: 100%;
+  }
+}
+
+</style>
+
+
+
+<script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+
+</head>
+
+<body>
+
+
+
+<div class="switcher">
+
+  <button data-tpl="command" class="active">01 · COMMAND DECK</button>
+
+  <button data-tpl="daylight">02 · DAYLIGHT OPS</button>
+
+  <button data-tpl="field">03 · FIELD COMPACT</button>
+
+</div>
+
+
+
+<div class="page active" id="page-command"></div>
+
+<div class="page" id="page-daylight"></div>
+
+<div class="page" id="page-field"></div>
+
+
+
+<template id="dashboard-template">
+
+  <div class="alert-banner">
+
+    <div class="banner-icon">!</div>
+
+    <div class="banner-body">
+
+      <div class="banner-title">CRITICAL CONVEYOR CONDITION</div>
+
+      <div class="banner-chips"></div>
+
+    </div>
+
+    <button class="banner-ack">ACKNOWLEDGE</button>
+
+  </div>
+
+
+
+  <header class="dash-header">
+
+    <div class="title-block">
+
+      <h1>CB-01 · Smart Conveyor Prototype</h1>
+
+      <div class="sub">ESP32 sensor network · AI-assisted condition monitoring</div>
+
+    </div>
+
+    <div class="status-wrap">
+
+      <div class="status-pill severity-pill normal"><span class="dot"></span><span class="severity-text">WAITING</span></div>
+
+      <div class="status-pill connection-pill offline"><span class="dot live"></span><span class="connection-text">BACKEND OFFLINE</span></div>
+
+    </div>
+
+  </header>
+
+
+
+  <section class="top-row">
+
+    <div class="card health-card">
+
+      <h2>BELT HEALTH SCORE</h2>
+
+      <div class="gauge-wrap">
+
+        <svg viewBox="0 0 180 180">
+
+          <circle class="gauge-track" cx="90" cy="90" r="78"/>
+
+          <circle class="gauge-fill" cx="90" cy="90" r="78" stroke-dasharray="490" stroke-dashoffset="490"/>
+
+        </svg>
+
+        <div class="gauge-center">
+
+          <div class="num">--</div>
+
+          <div class="lbl">WAITING FOR DATA</div>
+
+        </div>
+
+      </div>
+
+      <div class="health-description">Start FastAPI and send a sensor reading.</div>
+
+      <div class="prediction-mini">
+
+        <div class="pred">Prediction: --</div>
+
+        <div class="conf">Confidence: --</div>
+
+      </div>
+
+    </div>
+
+
+
+    <div class="sensor-grid">
+
+      <div class="sensor-tile object-temp" data-sensor-tile="object_temperature">
+
+        <div class="top"><span class="name"><span class="icon">🌡</span>OBJECT TEMP</span><span class="tile-badge"></span></div>
+
+        <div class="val"><span class="sensor-number" data-sensor="object_temperature">--</span><span>°C</span></div>
+
+        <div class="delta">Thermal sensor · Obj</div>
+
+      </div>
+
+
+
+      <div class="sensor-tile ambient-temp" data-sensor-tile="ambient_temperature">
+
+        <div class="top"><span class="name"><span class="icon">☁</span>AMBIENT TEMP</span><span class="tile-badge"></span></div>
+
+        <div class="val"><span class="sensor-number" data-sensor="ambient_temperature">--</span><span>°C</span></div>
+
+        <div class="delta">Thermal sensor · Amb</div>
+
+      </div>
+
+
+
+      <div class="sensor-tile vibration" data-sensor-tile="vibration">
+
+        <div class="top"><span class="name"><span class="icon">〽</span>VIBRATION MAG</span><span class="tile-badge"></span></div>
+
+        <div class="val"><span class="sensor-number" data-sensor="vibration">--</span><span>g</span></div>
+
+        <div class="delta">Gyro/accelerometer · Mag</div>
+
+      </div>
+
+
+
+      <div class="sensor-tile alignment" data-sensor-tile="alignment">
+
+        <div class="top"><span class="name"><span class="icon">◎</span>ALIGNMENT DEV</span><span class="tile-badge"></span></div>
+
+        <div class="val"><span class="sensor-number" data-sensor="alignment">--</span></div>
+
+        <div class="delta">Gyro/accelerometer · Dev</div>
+
+      </div>
+
+
+
+      <div class="sensor-tile load" data-sensor-tile="load">
+
+        <div class="top"><span class="name"><span class="icon">⚖</span>LOAD CELL</span><span class="tile-badge"></span></div>
+
+        <div class="val"><span class="sensor-number" data-sensor="load">--</span><span>g</span></div>
+
+        <div class="delta load-note">Measured load</div>
+
+      </div>
+
+
+
+      <div class="sensor-tile speed" data-sensor-tile="speed">
+
+        <div class="top"><span class="name"><span class="icon">◴</span>MOTOR PWM</span><span class="tile-badge"></span></div>
+
+        <div class="val"><span class="sensor-number" data-sensor="speed">--</span><span>/ 255</span></div>
+
+        <div class="delta speed-note">Motor driver command</div>
+
+      </div>
+
+
+
+      <div class="sensor-tile flame" data-sensor-tile="flame">
+
+        <div class="top"><span class="name"><span class="icon">🔥</span>FLAME SENSOR</span><span class="tile-badge safe">SAFE</span></div>
+
+        <div class="val"><span class="sensor-number flame-value" data-sensor="flame">--</span></div>
+
+        <div class="delta">1 = safe · 0 = flame detected</div>
+
+      </div>
+
+    </div>
+
+  </section>
+
+
+
+  <section class="card camera-card" data-camera-card>
+    <div class="section-heading-row">
+      <div>
+        <h2>CAMERA VISION — BELT ALIGNMENT & TEAR WATCH</h2>
+        <div class="hint">Separate OpenCV measurements · pixel offset is not the ESP32/ML alignment value.</div>
+      </div>
+      <span class="anomaly-badge warming" data-camera-status>WAITING FOR CAMERA</span>
+    </div>
+    <div class="camera-layout">
+      <div>
+        <div class="camera-stream-wrap">
+          <iframe
+  class="camera-stream"
+  data-camera-stream
+  data-src="http://192.168.4.50"
+  title="ESP32-CAM Live Feed"
+  
+style="display:none; width:100%; height:450px; border:0; border-radius:12px; box-sizing:border-box;"
+
+></iframe>
+          <div class="camera-stream-placeholder" data-camera-stream-placeholder>Live stream loads when the dashboard tab is active. Confirm the camera address is http://192.168.4.50:81/stream.</div>
+        </div>
+        <div class="camera-status-line" data-camera-alert>Waiting for camera_vision.py to send data to FastAPI.</div>
+      </div>
+      <div class="camera-metrics">
+        <div class="camera-metric"><div class="camera-metric-label">CAMERA ALIGNMENT</div><div class="camera-metric-value" data-camera-alignment>--</div></div>
+        <div class="camera-metric"><div class="camera-metric-label">BELT IN FRAME</div><div class="camera-metric-value" data-camera-belt>--</div></div>
+        <div class="camera-metric"><div class="camera-metric-label">VISUAL TEAR FLAG</div><div class="camera-metric-value" data-camera-tear>--</div></div>
+        <div class="camera-metric"><div class="camera-metric-label">GAP RATIO (HEURISTIC)</div><div class="camera-metric-value" data-camera-gap>--</div></div>
+        <div class="camera-metric"><div class="camera-metric-label">CAMERA PROCESS FPS</div><div class="camera-metric-value" data-camera-fps>--</div></div>
+        <div class="camera-metric"><div class="camera-metric-label">LAST CAMERA UPDATE</div><div class="camera-metric-value" data-camera-time>--</div></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="card twin-section">
+
+    <div class="head-row">
+
+      <h2>3D DIGITAL TWIN — BLENDER MODEL</h2>
+
+      <div class="status-pill" style="border:none;background:transparent;padding:0">interactive model</div>
+
+    </div>
+
+
+
+    <div class="twin-viewer-wrap">
+
+      <iframe
+
+        class="twin-viewer-frame"
+
+        data-twin-viewer
+
+        data-src="viewer.html"
+
+        title="Interactive 3D conveyor digital twin">
+
+      </iframe>
+
+    </div>
+
+
+
+    <div class="twin-viewer-note">
+
+      Drag to rotate · mouse wheel to zoom · right-drag to pan
+
+    </div>
+
+
+
+    <div class="twin-legend">
+
+      <div class="legend-chip ok" data-legend="belt">Belt system — nominal</div>
+
+      <div class="legend-chip ok" data-legend="motor">Drive motor — nominal</div>
+
+      <div class="legend-chip ok" data-legend="thermal">Thermal condition — nominal</div>
+
+      <div class="legend-chip ok" data-legend="fire">Fire safety — nominal</div>
+
+    </div>
+
+  </section>
+
+
+  <!-- DIGITAL BLACK BOX -->
+  <section class="card black-box-card" id="black-box">
+    <div class="section-heading-row">
+      <div>
+        <h2>DIGITAL BLACK BOX — EVENT REPLAY</h2>
+        <div class="hint">Review previously recorded conveyor sensor readings.</div>
+      </div>
+      <span class="status-pill">HISTORICAL DATA</span>
+    </div>
+
+    <div class="black-box-controls">
+      <label>
+        Start time
+        <input type="datetime-local" id="blackbox-start">
+      </label>
+
+      <label>
+        End time
+        <input type="datetime-local" id="blackbox-end">
+      </label>
+
+      <button type="button" id="blackbox-load">Load Recordings</button>
+    </div>
+
+    <div id="blackbox-message" role="status">
+      Select a time range and load saved readings.
+    </div>
+
+    <div id="blackbox-results"></div>
+  </section>
+  <!-- END DIGITAL BLACK BOX -->
+
+
+  <section class="why-status-card">
+
+    <div class="why-status-header">
+
+      <div class="why-status-icon">i</div>
+
+      <div>
+
+        <div class="why-status-title">WHY THIS STATUS?</div>
+
+        <div class="why-status-subtitle">Reasons returned by the FastAPI health logic and ML result.</div>
+
+      </div>
+
+    </div>
+
+    <div class="why-status-list">
+
+      <div class="why-empty">Waiting for sensor data...</div>
+
+    </div>
+
+  </section>
+
+
+
+
+  <section class="card anomaly-card" data-anomaly-card>
+    <div class="anomaly-header">
+      <div>
+        <h2>UNSUPERVISED ANOMALY DETECTION</h2>
+        <div class="anomaly-subtitle">Looks for unusual sensor patterns that may not match a known ML fault class.</div>
+      </div>
+      <span class="anomaly-badge warming" data-anomaly-badge>WAITING FOR DATA</span>
+    </div>
+    <div class="anomaly-grid">
+      <div class="anomaly-metric">
+        <div class="anomaly-label">DETECTOR RESULT</div>
+        <div class="anomaly-value" data-anomaly-status>Waiting for sensor data</div>
+        <div class="anomaly-detail">Unsupervised pattern check</div>
+      </div>
+      <div class="anomaly-metric">
+        <div class="anomaly-label">RAW ANOMALY SCORE</div>
+        <div class="anomaly-value" data-anomaly-score>--</div>
+        <div class="anomaly-detail">Score is not a percentage or confidence.</div>
+      </div>
+      <div class="anomaly-metric">
+        <div class="anomaly-label">TEMPORAL ANALYSIS</div>
+        <div class="anomaly-value" data-temporal-status>Warming up</div>
+        <div class="anomaly-detail" data-temporal-detail>Waiting for readings</div>
+      </div>
+    </div>
+    <div class="anomaly-message" data-anomaly-message>Waiting for live sensor data.</div>
+  </section>
+
+  <section class="card sensor-graphs-section">
+
+    <div class="section-heading-row">
+
+      <h2>LIVE SENSOR LINE GRAPHS — LATEST 50 READINGS</h2>
+
+      <div class="hint">Drag to zoom · mouse wheel to zoom · double-click to reset · toolbar has zoom in/out</div>
+
+    </div>
+
+
+
+    <div class="sensor-charts-grid">
+
+      <div class="sensor-chart-card">
+
+        <div class="sensor-chart-head"><span class="sensor-chart-title">OBJECT TEMPERATURE</span><span class="sensor-chart-unit">°C</span></div>
+
+        <div class="sensor-chart" data-chart="object_temperature"></div>
+
+      </div>
+
+
+
+      <div class="sensor-chart-card">
+
+        <div class="sensor-chart-head"><span class="sensor-chart-title">AMBIENT TEMPERATURE</span><span class="sensor-chart-unit">°C</span></div>
+
+        <div class="sensor-chart" data-chart="ambient_temperature"></div>
+
+      </div>
+
+
+
+      <div class="sensor-chart-card">
+
+        <div class="sensor-chart-head"><span class="sensor-chart-title">VIBRATION MAGNITUDE</span><span class="sensor-chart-unit">g</span></div>
+
+        <div class="sensor-chart" data-chart="vibration"></div>
+
+      </div>
+
+
+
+      <div class="sensor-chart-card">
+
+        <div class="sensor-chart-head"><span class="sensor-chart-title">ALIGNMENT DEVIATION</span><span class="sensor-chart-unit">Dev</span></div>
+
+        <div class="sensor-chart" data-chart="alignment"></div>
+
+      </div>
+
+
+
+      <div class="sensor-chart-card">
+
+        <div class="sensor-chart-head"><span class="sensor-chart-title">LOAD CELL</span><span class="sensor-chart-unit">g</span></div>
+
+        <div class="sensor-chart" data-chart="load"></div>
+
+      </div>
+
+
+
+      <div class="sensor-chart-card">
+
+        <div class="sensor-chart-head"><span class="sensor-chart-title">MOTOR PWM</span><span class="sensor-chart-unit">0–255</span></div>
+
+        <div class="sensor-chart" data-chart="speed"></div>
+
+      </div>
+
+
+
+      <div class="sensor-chart-card">
+
+        <div class="sensor-chart-head"><span class="sensor-chart-title">FLAME SENSOR</span><span class="sensor-chart-unit">1 = SAFE · 0 = FLAME</span></div>
+
+        <div class="sensor-chart" data-chart="flame"></div>
+
+      </div>
+
+    </div>
+
+    <div class="chart-help">Zoom is preserved while new readings arrive.</div>
+
+  </section>
+
+
+
+  <section class="analysis-grid" style="margin-top:16px;">
+
+    <div class="card predictions-card">
+
+      <h2>CURRENT ML PREDICTION</h2>
+
+      <div class="prediction-name">--</div>
+
+      <div class="prediction-confidence">Confidence: --</div>
+
+      <div class="prediction-note">The model classifies the current conveyor condition. Until new fault data is collected, the backend can remain in data-collection mode.</div>
+
+    </div>
+
+
+
+    <div class="card alerts-card">
+
+      <h2>RECENT ALERTS</h2>
+
+      <div class="alerts-list"><div class="empty-row">No alerts received yet.</div></div>
+
+    </div>
+
+  </section>
+
+</template>
+
+
+
+<script>
+
+  const API_BASE = "http://127.0.0.1:8000";
+
+  const tpl = document.getElementById('dashboard-template');
+
+
+
+  ['command','daylight','field'].forEach(id => {
+
+    document.getElementById('page-' + id).appendChild(tpl.content.cloneNode(true));
+
+  });
+
+
+
+  const buttons = document.querySelectorAll('.switcher button');
+
+  buttons.forEach(btn => {
+
+    btn.addEventListener('click', () => {
+
+      buttons.forEach(b => b.classList.remove('active'));
+
+      btn.classList.add('active');
+
+      document.querySelectorAll('.page').forEach(page => page.classList.remove('active'));
+
+      document.getElementById('page-' + btn.dataset.tpl).classList.add('active');
+
+      document.documentElement.setAttribute('data-template', btn.dataset.tpl);
+
+      loadActiveTwinViewer();
+
+
+
+    });
+
+  });
+
+
+
+  function loadActiveTwinViewer() {
+    document.querySelectorAll('.page').forEach(page => {
+      const frame = page.querySelector('[data-twin-viewer]');
+      if (frame && page.classList.contains('active') && !frame.getAttribute('src')) {
+        frame.setAttribute('src', frame.dataset.src || 'viewer.html');
+      }
+
+      const stream = page.querySelector('[data-camera-stream]');
+      const placeholder = page.querySelector('[data-camera-stream-placeholder]');
+      if (stream) {
+        if (page.classList.contains('active')) {
+          if (!stream.getAttribute('src')) stream.setAttribute('src', stream.dataset.src || 'http://192.168.4.50:81/stream');
+          stream.style.display = 'block';
+          if (placeholder) placeholder.style.display = 'none';
+        } else {
+          stream.removeAttribute('src');
+          stream.style.display = 'none';
+          if (placeholder) placeholder.style.display = 'block';
+        }
+      }
+    });
+  }
+
+
+  loadActiveTwinViewer();
+
+
+
+  document.querySelectorAll('.banner-ack').forEach(btn => {
+
+    btn.addEventListener('click', () => {
+
+      btn.closest('.alert-banner').style.display = 'none';
+
+    });
+
+  });
+
+
+
+  function formatNumber(value, decimals = 2) {
+
+    const n = Number(value);
+
+    if (!Number.isFinite(n)) return '--';
+
+    return Number(n.toFixed(decimals)).toString();
+
+  }
+
+
+
+  function reasonIcon(reason) {
+
+    const r = reason.toLowerCase();
+
+    if (r.includes('flame') || r.includes('fire')) return '🔥';
+
+    if (r.includes('temperature') || r.includes('thermal')) return '🌡';
+
+    if (r.includes('vibration')) return '〽';
+
+    if (r.includes('alignment') || r.includes('misalign')) return '◎';
+
+    if (r.includes('load')) return '⚖';
+
+    if (r.includes('speed') || r.includes('stopped')) return '◴';
+
+    if (r.includes('ml')) return 'AI';
+
+    return '⚠';
+
+  }
+
+
+
+  function makePolyline(values, width = 300, height = 90, padding = 8) {
+
+    const nums = values.map(Number).filter(Number.isFinite);
+
+    if (nums.length === 0) return '';
+
+    if (nums.length === 1) return `0,${height / 2} ${width},${height / 2}`;
+
+
+
+    let min = Math.min(...nums);
+
+    let max = Math.max(...nums);
+
+    if (min === max) { min -= 1; max += 1; }
+
+
+
+    return nums.map((v, i) => {
+
+      const x = (i / (nums.length - 1)) * width;
+
+      const y = height - padding - ((v - min) / (max - min)) * (height - padding * 2);
+
+      return `${x.toFixed(1)},${y.toFixed(1)}`;
+
+    }).join(' ');
+
+  }
+
+
+
+
+
+  const SENSOR_CHARTS = {
+
+    object_temperature: { title: 'Object temperature', unit: '°C' },
+
+    ambient_temperature: { title: 'Ambient temperature', unit: '°C' },
+
+    vibration: { title: 'Vibration magnitude', unit: 'g' },
+
+    alignment: { title: 'Alignment deviation', unit: 'Dev' },
+
+    load: { title: 'Load', unit: 'g' },
+
+    speed: { title: 'Motor PWM', unit: 'PWM' },
+
+    flame: { title: 'Flame sensor', unit: 'state' }
+
+  };
+
+
+
+
+
+  // Real healthy baseline from ml/dataset.csv.
+
+  // This is shown only until at least two live readings exist,
+
+  // because a true line needs two or more points.
+
+  let baselineReadingsCache = null;
+
+
+
+  async function getBaselineReadings() {
+
+    if (baselineReadingsCache) return baselineReadingsCache;
+
+
+
+    try {
+
+      const response = await fetch('ml/dataset.csv', { cache: 'no-store' });
+
+      if (!response.ok) return [];
+
+
+
+      const csvText = await response.text();
+
+      const lines = csvText.trim().split(/\r?\n/).filter(Boolean);
+
+      if (lines.length < 2) return [];
+
+
+
+      const headers = lines[0].split(',').map(h => h.trim());
+
+
+
+      baselineReadingsCache = lines.slice(1).map((line, index) => {
+
+        const values = line.split(',');
+
+        const row = {};
+
+
+
+        headers.forEach((header, columnIndex) => {
+
+          const raw = (values[columnIndex] ?? '').trim();
+
+          row[header] = header === 'fault' ? raw : Number(raw);
+
+        });
+
+
+
+        row.timestamp = `Reading ${index + 1}`;
+
+        return row;
+
+      }).filter(row =>
+
+        Number.isFinite(row.object_temperature) &&
+
+        Number.isFinite(row.ambient_temperature) &&
+
+        Number.isFinite(row.vibration) &&
+
+        Number.isFinite(row.alignment) &&
+
+        Number.isFinite(row.load) &&
+
+        Number.isFinite(row.speed) &&
+
+        Number.isFinite(row.flame)
+
+      );
+
+
+
+      return baselineReadingsCache;
+
+    } catch (error) {
+
+      console.warn('Could not load healthy baseline dataset:', error);
+
+      return [];
+
+    }
+
+  }
+
+
+
+  function renderSensorCharts(page, readings) {
+
+    if (!window.Plotly || !page.classList.contains('active')) return;
+
+
+
+    const rows = Array.isArray(readings) ? readings : [];
+
+    const rootStyles = getComputedStyle(document.documentElement);
+
+    const textColor = rootStyles.getPropertyValue('--text-dim').trim() || '#8B939B';
+
+    const gridColor = rootStyles.getPropertyValue('--border').trim() || '#2C3238';
+
+
+
+    Object.entries(SENSOR_CHARTS).forEach(([key, meta]) => {
+
+      const chartEl = page.querySelector(`[data-chart="${key}"]`);
+
+      if (!chartEl) return;
+
+
+
+      const x = rows.map((r, i) => r.timestamp || `#${i + 1}`);
+
+      const y = rows.map(r => {
+
+        const value = Number(r[key]);
+
+        return Number.isFinite(value) ? value : null;
+
+      });
+
+
+
+      const trace = {
+
+        x,
+
+        y,
+
+        type: 'scatter',
+
+        mode: 'lines',
+
+        name: meta.title,
+
+        connectgaps: false,
+
+        line: key === 'flame' ? { shape: 'hv', width: 3 } : { width: 3 },
+
+                hovertemplate: `%{x}<br>${meta.title}: %{y}${key === 'flame' ? '' : ' ' + meta.unit}<extra></extra>`
+
+      };
+
+
+
+      const yaxis = {
+
+        title: meta.unit,
+
+        gridcolor: gridColor,
+
+        zerolinecolor: gridColor,
+
+        automargin: true
+
+      };
+
+
+
+      if (key === 'flame') {
+
+        yaxis.range = [-0.15, 1.15];
+
+        yaxis.tickvals = [0, 1];
+
+        yaxis.ticktext = ['FLAME', 'SAFE'];
+
+      }
+
+      if (key === 'speed') {
+
+        yaxis.range = [0, 255];
+
+      }
+
+
+
+      const layout = {
+
+        paper_bgcolor: 'rgba(0,0,0,0)',
+
+        plot_bgcolor: 'rgba(0,0,0,0)',
+
+        font: { color: textColor, family: 'JetBrains Mono, monospace', size: 10 },
+
+        margin: { l: 55, r: 18, t: 12, b: 48 },
+
+        xaxis: {
+
+          title: 'Time / reading',
+
+          gridcolor: gridColor,
+
+          zerolinecolor: gridColor,
+
+          automargin: true,
+
+          rangeslider: { visible: true, thickness: 0.10 }
+
+        },
+
+        yaxis,
+
+        hovermode: 'x unified',
+
+        showlegend: false,
+
+        dragmode: 'zoom',
+
+        uirevision: `keep-${key}`
+
+      };
+
+
+
+      const config = {
+
+        responsive: true,
+
+        displaylogo: false,
+
+        scrollZoom: true,
+
+        modeBarButtonsToRemove: ['lasso2d', 'select2d']
+
+      };
+
+
+
+      Plotly.react(chartEl, [trace], layout, config);
+
+    });
+
+  }
+
+
+
+  function setTileBadge(page, key, text, level) {
+
+    const tile = page.querySelector(`[data-sensor-tile="${key}"]`);
+
+    if (!tile) return;
+
+    const badge = tile.querySelector('.tile-badge');
+
+    tile.classList.remove('crit','warn-flag','sensor-check');
+
+    if (!badge) return;
+
+    badge.className = 'tile-badge';
+
+    badge.textContent = text || '';
+
+    if (level === 'critical') { tile.classList.add('crit'); badge.classList.add('critical'); }
+
+    if (level === 'warning') { tile.classList.add('warn-flag'); badge.classList.add('warning'); }
+
+    if (level === 'safe') { badge.classList.add('safe'); }
+
+  }
+
+
+
+  function updatePage(page, health, trends, alertPayload) {
+
+    const score = Number(health.health_score ?? 0);
+
+    const severity = health.severity || 'Unknown';
+
+    const severityKey = severity.toLowerCase();
+
+    const reasons = Array.isArray(health.why_status) ? health.why_status : [];
+
+
+
+    const scoreEl = page.querySelector('.gauge-center .num');
+
+    const labelEl = page.querySelector('.gauge-center .lbl');
+
+    const gaugeEl = page.querySelector('.gauge-fill');
+
+    const severityPill = page.querySelector('.severity-pill');
+
+    const severityText = page.querySelector('.severity-text');
+
+    const connectionPill = page.querySelector('.connection-pill');
+
+    const connectionText = page.querySelector('.connection-text');
+
+
+
+    if (scoreEl) scoreEl.textContent = Math.round(score);
+
+    if (labelEl) {
+
+      labelEl.textContent = severity === 'Normal' ? 'GOOD — NORMAL' :
+
+                            severity === 'Warning' ? 'WARNING — WATCH' :
+
+                            severity === 'Critical' ? 'CRITICAL' : 'WAITING FOR DATA';
+
+    }
+
+
+
+    if (gaugeEl) {
+
+      const circumference = 490;
+
+      const safeScore = Math.max(0, Math.min(100, score));
+
+      gaugeEl.style.strokeDashoffset = circumference - (safeScore / 100) * circumference;
+
+      gaugeEl.style.stroke = severity === 'Critical' ? 'var(--bad)' : severity === 'Warning' ? 'var(--warn)' : 'var(--good)';
+
+    }
+
+
+
+    if (scoreEl) scoreEl.style.color = severity === 'Critical' ? 'var(--bad)' : severity === 'Warning' ? 'var(--warn)' : 'var(--good)';
+
+
+
+    if (severityPill) {
+
+      severityPill.classList.remove('normal','warning','critical');
+
+      severityPill.classList.add(['normal','warning','critical'].includes(severityKey) ? severityKey : 'normal');
+
+    }
+
+    if (severityText) severityText.textContent = severity.toUpperCase();
+
+    if (connectionPill) connectionPill.classList.remove('offline');
+
+    if (connectionText) connectionText.textContent = 'LIVE · UPDATED JUST NOW';
+
+
+
+    const healthDesc = page.querySelector('.health-description');
+
+    if (healthDesc) {
+
+      healthDesc.textContent = severity === 'Critical' ? 'Critical condition detected. Inspect immediately.' :
+
+                               severity === 'Warning' ? 'Elevated condition detected. Monitor closely.' :
+
+                               'System is operating within the current normal range.';
+
+    }
+
+
+
+    const values = {
+
+      object_temperature: health.object_temperature,
+
+      ambient_temperature: health.ambient_temperature,
+
+      vibration: health.vibration,
+
+      alignment: health.alignment,
+
+      load: health.load,
+
+      speed: health.speed
+
+    };
+
+
+
+    Object.entries(values).forEach(([key, value]) => {
+
+      const el = page.querySelector(`[data-sensor="${key}"]`);
+
+      if (el) el.textContent = formatNumber(value, key === 'speed' ? 0 : 2);
+
+    });
+
+
+
+    const flameValue = Number(health.flame);
+
+    const flameEl = page.querySelector('[data-sensor="flame"]');
+
+    if (flameEl) flameEl.textContent = flameValue === 0 ? 'FLAME' : flameValue === 1 ? 'SAFE' : '--';
+
+
+
+    // Reset all badges before applying current state.
+
+    ['object_temperature','ambient_temperature','vibration','alignment','load','speed'].forEach(k => setTileBadge(page,k,'',''));
+
+    setTileBadge(page,'flame', flameValue === 0 ? 'CRITICAL' : 'SAFE', flameValue === 0 ? 'critical' : 'safe');
+
+
+
+    // Flag obvious load-cell calibration/outlier readings without changing overall backend severity.
+
+    if (Number.isFinite(Number(health.load)) && Number(health.load) < 0) {
+
+      setTileBadge(page,'load','CHECK','warning');
+
+      const note = page.querySelector('.load-note');
+
+      if (note) note.textContent = 'Negative reading — tare/calibration check';
+
+    } else {
+
+      const note = page.querySelector('.load-note');
+
+      if (note) note.textContent = 'Measured load';
+
+    }
+
+
+
+    if (Number(health.speed) === 0) setTileBadge(page,'speed','STOPPED', flameValue === 0 ? 'critical' : 'warning');
+
+
+
+    const keywordMap = {
+
+      object_temperature:['object temperature','temperature','thermal','overheating'],
+
+      ambient_temperature:['ambient'],
+
+      vibration:['vibration'],
+
+      alignment:['alignment','misalign'],
+
+      load:['load','overload'],
+
+      speed:['speed','stopped']
+
+    };
+
+
+
+    Object.entries(keywordMap).forEach(([key, keywords]) => {
+
+      const matched = reasons.some(reason => keywords.some(k => reason.toLowerCase().includes(k)));
+
+      if (!matched) return;
+
+      if (key === 'load' && Number(health.load) < 0) return;
+
+      setTileBadge(page,key,severity === 'Critical' ? 'CRITICAL' : 'WARNING',severity === 'Critical' ? 'critical' : 'warning');
+
+    });
+
+
+
+    const prediction = health.prediction || '--';
+
+    const confidence = Number(health.confidence);
+
+    page.querySelectorAll('.prediction-mini .pred').forEach(el => el.textContent = `Prediction: ${prediction.replaceAll('_',' ')}`);
+
+    page.querySelectorAll('.prediction-mini .conf').forEach(el => el.textContent = `Confidence: ${Number.isFinite(confidence) ? confidence.toFixed(2) + '%' : '--'}`);
+
+    const predictionName = page.querySelector('.prediction-name');
+
+    const predictionConfidence = page.querySelector('.prediction-confidence');
+
+    if (predictionName) predictionName.textContent = prediction.replaceAll('_',' ');
+
+    if (predictionConfidence) predictionConfidence.textContent = `Confidence: ${Number.isFinite(confidence) ? confidence.toFixed(2) + '%' : '--'}`;
+
+
+
+    const whyList = page.querySelector('.why-status-list');
+
+    if (whyList) {
+
+      if (reasons.length === 0) {
+
+        whyList.innerHTML = '<div class="why-empty">All monitored parameters are within the normal range.</div>';
+
+      } else {
+
+        whyList.innerHTML = reasons.map(reason => `
+
+          <div class="why-item">
+
+            <div class="why-item-icon">${reasonIcon(reason)}</div>
+
+            <div>
+
+              <div class="why-item-title">${reason}</div>
+
+              <div class="why-item-description">Based on the latest conveyor sensor packet and system logic.</div>
+
+            </div>
+
+          </div>`).join('');
+
+      }
+
+    }
+
+
+
+
+    // Surface the backend's unsupervised anomaly and temporal-analysis results.
+    const anomalyDetected = health.anomaly_detected === true;
+    const temporal = health.temporal_analysis && typeof health.temporal_analysis === 'object'
+      ? health.temporal_analysis : {};
+    const temporalReady = temporal.ready === true;
+    const shiftDetected = temporal.shift_detected === true;
+    const samples = Number.isFinite(Number(temporal.samples)) ? Number(temporal.samples) : 0;
+
+    const anomalyCard = page.querySelector('[data-anomaly-card]');
+    const anomalyBadge = page.querySelector('[data-anomaly-badge]');
+    const anomalyStatusEl = page.querySelector('[data-anomaly-status]');
+    const anomalyScoreEl = page.querySelector('[data-anomaly-score]');
+    const temporalStatusEl = page.querySelector('[data-temporal-status]');
+    const temporalDetailEl = page.querySelector('[data-temporal-detail]');
+    const anomalyMessageEl = page.querySelector('[data-anomaly-message]');
+
+    if (anomalyCard) {
+      anomalyCard.classList.toggle('is-anomaly', anomalyDetected);
+      anomalyCard.classList.toggle('has-shift', shiftDetected);
+    }
+
+    if (anomalyBadge) {
+      anomalyBadge.classList.remove('normal', 'warning', 'critical', 'warming');
+      if (anomalyDetected) {
+        anomalyBadge.textContent = 'INVESTIGATE';
+        anomalyBadge.classList.add('warning');
+      } else if (!temporalReady) {
+        anomalyBadge.textContent = 'WARMING UP';
+        anomalyBadge.classList.add('warming');
+      } else {
+        anomalyBadge.textContent = 'NO ANOMALY';
+        anomalyBadge.classList.add('normal');
+      }
+    }
+
+    if (anomalyStatusEl) {
+      anomalyStatusEl.textContent = anomalyDetected
+        ? 'Unusual pattern detected'
+        : !temporalReady
+          ? 'Collecting baseline readings'
+          : 'No unusual pattern detected';
+    }
+
+    if (anomalyScoreEl) {
+      anomalyScoreEl.textContent = health.anomaly_score == null
+        ? '--'
+        : formatNumber(health.anomaly_score, 5);
+    }
+
+    if (temporalStatusEl) {
+      temporalStatusEl.textContent = shiftDetected
+        ? 'Sensor shift detected'
+        : temporalReady
+          ? 'No shift detected'
+          : 'Warming up';
+    }
+
+    if (temporalDetailEl) {
+      temporalDetailEl.textContent = temporalReady
+        ? `${samples} readings analyzed`
+        : `${samples} reading${samples === 1 ? '' : 's'} collected so far`;
+    }
+
+    if (anomalyMessageEl) {
+      anomalyMessageEl.textContent = anomalyDetected
+        ? 'The latest sensor pattern looks unusual. Investigate the belt and sensor readings; this is a warning, not a confirmed fault diagnosis.'
+        : !temporalReady
+          ? 'The temporal detector is still warming up. Keep sending live readings before relying on its trend analysis.'
+          : shiftDetected
+            ? 'Sensor behaviour has shifted over time. Inspect the trend and verify the physical conveyor.'
+            : 'No unusual pattern was flagged in this update. This does not guarantee the conveyor is fault-free.';
+    }
+
+    const banner = page.querySelector('.alert-banner');
+
+    if (banner) {
+
+      if (severity === 'Critical') {
+
+        banner.style.display = 'flex';
+
+        const chips = banner.querySelector('.banner-chips');
+
+        if (chips) chips.innerHTML = (reasons.length ? reasons : ['Critical condition detected']).map(r => `<span class="banner-chip">${r}</span>`).join('');
+
+      } else {
+
+        banner.style.display = 'none';
+
+      }
+
+    }
+
+
+
+    const marker = page.querySelector('.twin-fault-marker');
+
+    const beltLegend = page.querySelector('[data-legend="belt"]');
+
+    const motorLegend = page.querySelector('[data-legend="motor"]');
+
+    const thermalLegend = page.querySelector('[data-legend="thermal"]');
+
+    const fireLegend = page.querySelector('[data-legend="fire"]');
+
+    [beltLegend,motorLegend,thermalLegend,fireLegend].forEach(el => { if (el) { el.className='legend-chip ok'; } });
+
+
+
+    const hasBeltFault = reasons.some(r => /vibration|alignment|misalign|load/i.test(r));
+
+    const hasMotorFault = reasons.some(r => /speed|stopped|motor/i.test(r));
+
+    const hasThermalFault = reasons.some(r => /temperature|thermal|overheat/i.test(r));
+
+    const hasFireFault = flameValue === 0 || reasons.some(r => /flame|fire/i.test(r));
+
+
+
+    if (marker) {
+
+      if (severity !== 'Normal' && (hasBeltFault || hasMotorFault || hasThermalFault || hasFireFault)) {
+
+        marker.style.display = '';
+
+        const text = marker.querySelector('text');
+
+        if (hasMotorFault) marker.setAttribute('transform','translate(750,150)');
+
+        else marker.setAttribute('transform','translate(450,150)');
+
+        if (text) text.textContent = hasFireFault ? 'FIRE SAFETY EVENT' : hasMotorFault ? 'MOTOR / SPEED EVENT' : 'BELT CONDITION EVENT';
+
+      } else {
+
+        marker.style.display = 'none';
+
+      }
+
+    }
+
+
+
+    const legendState = severity === 'Critical' ? 'fault' : 'watch';
+
+    if (hasBeltFault && beltLegend) beltLegend.className = `legend-chip ${legendState}`;
+
+    if (hasMotorFault && motorLegend) motorLegend.className = `legend-chip ${legendState}`;
+
+    if (hasThermalFault && thermalLegend) thermalLegend.className = `legend-chip ${legendState}`;
+
+    if (hasFireFault && fireLegend) fireLegend.className = 'legend-chip fault';
+
+
+
+    const readings = Array.isArray(trends?.readings) ? trends.readings : [];
+
+
+
+    const graphHeading = page.querySelector('.sensor-graphs-section h2');
+
+    const graphHint = page.querySelector('.sensor-graphs-section .hint');
+
+
+
+    if (graphHeading) {
+
+      graphHeading.textContent = trends?.source === 'healthy-baseline'
+
+        ? 'SENSOR LINE GRAPHS — REAL HEALTHY BASELINE DATA'
+
+        : 'LIVE SENSOR LINE GRAPHS — LATEST 50 READINGS';
+
+    }
+
+
+
+    if (graphHint) {
+
+      graphHint.textContent = trends?.source === 'healthy-baseline'
+
+        ? 'Showing saved real healthy readings until the ESP32 live stream has 2+ readings · drag or scroll to zoom'
+
+        : 'Drag to zoom · mouse wheel to zoom · double-click to reset · toolbar has zoom in/out';
+
+    }
+
+
+
+    renderSensorCharts(page, readings);
+
+
+
+    const alertsList = page.querySelector('.alerts-list');
+
+    const alerts = Array.isArray(alertPayload?.alerts) ? alertPayload.alerts.slice().reverse() : [];
+
+    if (alertsList) {
+
+      if (alerts.length === 0) {
+
+        alertsList.innerHTML = '<div class="empty-row">No recent alerts.</div>';
+
+      } else {
+
+        alertsList.innerHTML = alerts.map(a => {
+
+          const sev = (a.severity || 'Warning').toLowerCase();
+
+          const when = a.timestamp ? new Date(a.timestamp).toLocaleString() : '--';
+
+          const fault = (a.fault || 'Condition').replaceAll('_',' ');
+
+          return `<div class="alert-row"><span class="t">${when}</span><span class="sev ${sev}">${(a.severity || 'Warning').toUpperCase()}</span><span>${fault}</span></div>`;
+
+        }).join('');
+
+      }
+
+    }
+
+  }
+
+
+
+  function markOffline() {
+
+    document.querySelectorAll('.page').forEach(page => {
+
+      const connectionPill = page.querySelector('.connection-pill');
+
+      const connectionText = page.querySelector('.connection-text');
+
+      if (connectionPill) connectionPill.classList.add('offline');
+
+      if (connectionText) connectionText.textContent = 'BACKEND OFFLINE';
+
+    });
+
+  }
+
+
+
+ // ==========================================
+
+// STABLE LIVE WEBSOCKET CONNECTION
+
+// ==========================================
+
+
+
+let socket = null;
+
+let reconnectTimer = null;
+
+
+
+let lastGoodMessageAt = 0;
+
+let hasLiveData = false;
+
+
+
+
+
+function setConnectionText(text, offline = false) {
+
+
+
+  document.querySelectorAll('.connection-pill').forEach(el => {
+
+
+
+    if (offline) {
+
+      el.classList.add('offline');
+
+    } else {
+
+      el.classList.remove('offline');
+
+    }
+
+
+
+  });
+
+
+
+  document.querySelectorAll('.connection-text').forEach(el => {
+
+    el.textContent = text;
+
+  });
+
+}
+
+
+
+
+
+function updateCameraPanel(camera) {
+  document.querySelectorAll('[data-camera-card]').forEach(card => {
+    const status = camera.camera_status || 'Waiting for camera';
+    const statusEl = card.querySelector('[data-camera-status]');
+    const alignmentEl = card.querySelector('[data-camera-alignment]');
+    const beltEl = card.querySelector('[data-camera-belt]');
+    const tearEl = card.querySelector('[data-camera-tear]');
+    const gapEl = card.querySelector('[data-camera-gap]');
+    const fpsEl = card.querySelector('[data-camera-fps]');
+    const timeEl = card.querySelector('[data-camera-time]');
+    const alertEl = card.querySelector('[data-camera-alert]');
+    const tear = camera.tear_detected === true;
+    const belt = camera.belt_found === true;
+    const referenceSet = camera.reference_set === true;
+
+    card.classList.toggle('is-camera-alert', tear);
+    if (statusEl) {
+      statusEl.textContent = status.toUpperCase();
+      statusEl.classList.remove('normal', 'warning', 'critical', 'warming');
+      statusEl.classList.add(tear ? 'critical' : belt ? 'normal' : 'warming');
+    }
+    if (alignmentEl) alignmentEl.textContent = referenceSet ? `${formatNumber(camera.alignment_px, 1)} px` : 'Set reference (press C)';
+    if (beltEl) beltEl.textContent = belt ? 'FOUND' : 'NOT FOUND';
+    if (tearEl) tearEl.textContent = tear ? 'POSSIBLE TEAR' : 'NOT FLAGGED';
+    if (gapEl) gapEl.textContent = formatNumber(camera.tear_ratio, 4);
+    if (fpsEl) fpsEl.textContent = formatNumber(camera.camera_fps, 1);
+    if (timeEl) {
+      const raw = camera.camera_timestamp;
+      timeEl.textContent = raw ? new Date(raw).toLocaleTimeString() : '--';
+    }
+    if (alertEl) alertEl.textContent = camera.camera_alert || 'Waiting for camera data.';
+  });
+}
+
+function connectWebSocket() {
+
+
+
+  // Don't create duplicate connections
+
+  if (
+
+    socket &&
+
+    (
+
+      socket.readyState === WebSocket.OPEN ||
+
+      socket.readyState === WebSocket.CONNECTING
+
+    )
+
+  ) {
+
+    return;
+
+  }
+
+
+
+
+
+  socket = new WebSocket(
+
+    "ws://127.0.0.1:8000/ws"
+
+  );
+
+
+
+
+
+  socket.onopen = () => {
+
+
+
+    console.log("WebSocket connected");
+
+
+
+    if (hasLiveData) {
+
+
+
+      setConnectionText(
+
+        "LIVE · WEBSOCKET",
+
+        false
+
+      );
+
+
+
+    } else {
+
+
+
+      setConnectionText(
+
+        "CONNECTED · WAITING DATA",
+
+        false
+
+      );
+
+
+
+    }
+
+
+
+  };
+
+
+
+
+
+  socket.onmessage = async (event) => {
+
+
+
+    try {
+
+
+
+      const health = JSON.parse(event.data);
+
+      if (health && health.type === 'camera_update') {
+        updateCameraPanel(health.camera || {});
+        return;
+      }
+
+
+
+
+
+      // IMPORTANT:
+
+      // If FastAPI just restarted and sends an empty
+
+      // state, DO NOT erase the last valid dashboard data.
+
+      if (!health.timestamp) {
+
+
+
+        console.log(
+
+          "Ignoring empty backend state"
+
+        );
+
+
+
+        return;
+
+      }
+
+
+
+
+
+      lastGoodMessageAt = Date.now();
+
+      hasLiveData = true;
+
+
+
+      setConnectionText(
+
+        "LIVE · UPDATED JUST NOW",
+
+        false
+
+      );
+
+
+
+
+
+      const [
+
+        trendsResponse,
+
+        alertsResponse
+
+      ] = await Promise.all([
+
+
+
+        fetch(`${API_BASE}/trends`),
+
+
+
+        fetch(`${API_BASE}/alerts`)
+
+
+
+      ]);
+
+
+
+
+
+      const trends =
+
+        trendsResponse.ok
+
+          ? await trendsResponse.json()
+
+          : { readings: [] };
+
+
+
+
+
+      trends.source = "live";
+
+
+
+
+
+      const alerts =
+
+        alertsResponse.ok
+
+          ? await alertsResponse.json()
+
+          : { alerts: [] };
+
+
+
+
+
+      document
+
+        .querySelectorAll('.page')
+
+        .forEach(page => {
+
+
+
+          updatePage(
+
+            page,
+
+            health,
+
+            trends,
+
+            alerts
+
+          );
+
+
+
+        });
+
+
+
+
+
+    } catch (error) {
+
+
+
+      console.error(
+
+        "WebSocket data error:",
+
+        error
+
+      );
+
+
+
+    }
+
+
+
+  };
+
+
+
+
+
+  socket.onclose = () => {
+
+
+
+    console.log(
+
+      "WebSocket disconnected — reconnecting silently"
+
+    );
+
+
+
+
+
+    // DO NOT clear dashboard
+
+    // DO NOT immediately show offline
+
+
+
+    clearTimeout(reconnectTimer);
+
+
+
+    reconnectTimer = setTimeout(
+
+      connectWebSocket,
+
+      1000
+
+    );
+
+
+
+  };
+
+
+
+
+
+  socket.onerror = () => {
+
+
+
+    console.log(
+
+      "WebSocket connection error"
+
+    );
+
+
+
+  };
+
+
+
+}
+
+
+
+
+
+// Only show OFFLINE if real sensor data
+
+// has stopped for more than 5 seconds.
+
+setInterval(() => {
+
+
+
+  if (
+
+    hasLiveData &&
+
+    Date.now() - lastGoodMessageAt > 5000
+
+  ) {
+
+
+
+    setConnectionText(
+
+      "DATA STREAM OFFLINE",
+
+      true
+
+    );
+
+
+
+  }
+
+
+
+}, 1000);
+
+
+
+
+
+// Start WebSocket
+
+// Start real-time WebSocket
+
+connectWebSocket();
+
+
+
+
+
+// Start real-time WebSocket
+
+connectWebSocket();
+
+
+  // DIGITAL BLACK BOX — LOAD HISTORICAL READINGS
+  (() => {
+    const startInput = document.getElementById("blackbox-start");
+    const endInput = document.getElementById("blackbox-end");
+    const loadButton = document.getElementById("blackbox-load");
+    const message = document.getElementById("blackbox-message");
+    const results = document.getElementById("blackbox-results");
+
+    if (!startInput || !endInput || !loadButton) return;
+
+    function localDateTime(date) {
+      const pad = n => String(n).padStart(2, "0");
+      return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+    }
+
+    const now = new Date();
+    const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+    startInput.value = localDateTime(yesterday);
+    endInput.value = localDateTime(now);
+
+    function safe(value) {
+      const el = document.createElement("span");
+      el.textContent = value == null ? "--" : String(value);
+      return el.innerHTML;
+    }
+
+    loadButton.addEventListener("click", async () => {
+      const start = startInput.value;
+      const end = endInput.value;
+
+      if (!start || !end) {
+        message.textContent = "Please select both start and end times.";
+        return;
+      }
+
+      if (start > end) {
+        message.textContent = "Start time must be before end time.";
+        return;
+      }
+
+      loadButton.disabled = true;
+      message.textContent = "Loading saved recordings...";
+      results.replaceChildren();
+
+      try {
+        const url = new URL(`${API_BASE}/replay/readings`);
+        url.searchParams.set("start", start + ":00");
+        url.searchParams.set("end", end + ":59");
+        url.searchParams.set("limit", "1000");
+
+        const response = await fetch(url);
+        if (!response.ok) {
+          throw new Error(`API returned HTTP ${response.status}`);
+        }
+
+        const data = await response.json();
+        const readings = data.readings || [];
+
+        message.textContent = `${readings.length} saved reading(s) found.`;
+
+        if (!readings.length) {
+          results.textContent = "No recordings found for this time range. Try another range.";
+          return;
+        }
+
+        results.innerHTML = `
+          <div class="blackbox-table-wrap">
+            <table class="blackbox-table">
+              <thead>
+                <tr>
+                  <th>Timestamp</th>
+                  <th>Prediction</th>
+                  <th>Severity</th>
+                  <th>Object Temp (°C)</th>
+                  <th>Vibration</th>
+                  <th>Health Score</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${readings.map(r => `
+                  <tr>
+                    <td>${safe(r.timestamp)}</td>
+                    <td>${safe(r.prediction)}</td>
+                    <td>${safe(r.severity)}</td>
+                    <td>${safe(r.object_temperature)}</td>
+                    <td>${safe(r.vibration)}</td>
+                    <td>${safe(r.health_score)}</td>
+                  </tr>
+                `).join("")}
+              </tbody>
+            </table>
+          </div>
+        `;
+      } catch (error) {
+        message.textContent = `Could not load recordings: ${error.message}. Check that the backend is running.`;
+      } finally {
+        loadButton.disabled = false;
+      }
+    });
+  })();
+
+
+</script>
+
+</body>
+
+</html>

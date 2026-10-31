@@ -1,0 +1,8 @@
+{
+  "liveServer.settings.ignoreFiles": [
+    "**/conveyor.db",
+    "**/*.db",
+    "**/__pycache__/**",
+    "**/*.pyc"
+  ]
+}
