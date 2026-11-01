@@ -6,7 +6,7 @@
 
 <meta charset="UTF-8">
 
-<meta name="viewport" content="width=device-width, initial-scale=1.0"
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 
 <title>Smart Conveyor Predictive Maintenance</title>
 
@@ -823,15 +823,7 @@
     <div class="camera-layout">
       <div>
         <div class="camera-stream-wrap">
-          <iframe
-  class="camera-stream"
-  data-camera-stream
-  data-src="http://192.168.4.50"
-  title="ESP32-CAM Live Feed"
-  
-style="display:none; width:100%; height:450px; border:0; border-radius:12px; box-sizing:border-box;"
-
-></iframe>
+          <img class="camera-stream" data-camera-stream data-src="http://192.168.4.50:81/stream" alt="ESP32-CAM live conveyor stream" style="display:none; width:100%; max-height:360px; object-fit:contain;" />
           <div class="camera-stream-placeholder" data-camera-stream-placeholder>Live stream loads when the dashboard tab is active. Confirm the camera address is http://192.168.4.50:81/stream.</div>
         </div>
         <div class="camera-status-line" data-camera-alert>Waiting for camera_vision.py to send data to FastAPI.</div>
@@ -1161,6 +1153,16 @@ style="display:none; width:100%; height:450px; border:0; border-radius:12px; box
       const placeholder = page.querySelector('[data-camera-stream-placeholder]');
       if (stream) {
         if (page.classList.contains('active')) {
+          if (placeholder) {
+            placeholder.textContent = 'Connecting to ESP32-CAM live stream...';
+          }
+          stream.onerror = () => {
+            stream.style.display = 'none';
+            if (placeholder) {
+              placeholder.style.display = 'block';
+              placeholder.textContent = 'Camera stream could not load. Check that the ESP32-CAM is online and that http://192.168.4.50:81/stream opens in your browser.';
+            }
+          };
           if (!stream.getAttribute('src')) stream.setAttribute('src', stream.dataset.src || 'http://192.168.4.50:81/stream');
           stream.style.display = 'block';
           if (placeholder) placeholder.style.display = 'none';
