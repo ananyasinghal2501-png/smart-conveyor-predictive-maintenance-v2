@@ -356,13 +356,13 @@ def generate_status_explanation(
             "Vibration is critically high"
         )
 
-    elif vibration >= 5:
+    elif vibration >= 7:
 
         reasons.append(
             "Vibration is above the normal range"
         )
 
-    elif vibration >= 3:
+    elif vibration >= 5:
 
         reasons.append(
             "Vibration is elevated"
@@ -587,13 +587,74 @@ async def receive_sensor_data(data: SensorData):
     # 0 = flame detected
     # 1 = safe
 
+    
+    # ======================================
+    # EMERGENCY FLAME + RUPTURE OVERRIDE
+    # ======================================
+
+    # Flame detection has the highest priority
     if data.flame == 0:
 
         prediction = "Fire"
         confidence = 100.0
         severity = "Critical"
 
+    # Rule-based rupture detection
+    elif data.vibration != 1.0 or data.alignment != 0.0:
+
+        prediction = "rupture"
+        confidence = 100.0
+        severity = "Critical"
+
     else:
+
+        # ==================================
+        # RANDOM FOREST PREDICTION
+        # ==================================
+
+        if model is not None:
+
+            input_data = pd.DataFrame([{
+                "object_temperature": data.object_temperature,
+                "ambient_temperature": data.ambient_temperature,
+                "vibration": data.vibration,
+                "alignment": data.alignment,
+                "load": data.load
+            }])
+
+            prediction = model.predict(input_data)[0]
+
+            probabilities = model.predict_proba(input_data)[0]
+
+            confidence = float(
+                probabilities.max() * 100
+            )
+
+            # ==================================
+            # ML CLASS → SEVERITY
+            # ==================================
+
+            if prediction == "healthy":
+                severity = "Normal"
+
+            elif prediction == "overheat":
+                if data.object_temperature >= 80:
+                    severity = "Critical"
+                else:
+                    severity = "Warning"
+
+            elif prediction == "rupture":
+                severity = "Critical"
+
+            else:
+                severity = "Warning"
+
+        else:
+
+            prediction = "Model_Not_Loaded"
+            confidence = 0.0
+            severity = "Warning"
+
 
         # ==================================
         # RANDOM FOREST PREDICTION
